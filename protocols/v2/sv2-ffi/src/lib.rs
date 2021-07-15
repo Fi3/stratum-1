@@ -373,3 +373,61 @@ pub extern "C" fn next_frame(decoder: *mut DecoderWrapper) -> CResult<CSv2Messag
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common_messages_sv2::Protocol;
+    use std::net::TcpStream;
+
+    #[test]
+    fn test_encode() {
+        let mut encoder = Encoder::<SetupConnection>::new();
+
+        let setup_connection = SetupConnection {
+            protocol: Protocol::TemplateDistributionProtocol, // 2
+            min_version: 2,
+            max_version: 2,
+            flags: 0,
+            endpoint_host: "0.0.0.0".to_string().into_bytes().try_into().unwrap(),
+            endpoint_port: 8081,
+            vendor: "Bitmain".to_string().into_bytes().try_into().unwrap(),
+            hardware_version: "901".to_string().into_bytes().try_into().unwrap(),
+            firmware: "abcX".to_string().into_bytes().try_into().unwrap(),
+            device_id: "89567".to_string().into_bytes().try_into().unwrap(),
+        };
+
+        let setup_connection =
+            StandardSv2Frame::from_message(setup_connection, MESSAGE_TYPE_SETUP_CONNECTION, 0)
+                .unwrap();
+        // let setup_connection = Sv2Frame {
+        //     header: Header {
+        //         extesion_type: 0,
+        //         msg_type: 0,
+        //         msg_length: U24(42),
+        //     },
+        //     payload: Some(SetupConnection {
+        //         protocol: TemplateDistributionProtocol, // 2
+        //         min_version: 2,
+        //         max_version: 2,
+        //         flags: 0,
+        //         endpoint_host: Owned([48, 46, 48, 46, 48, 46, 48]),
+        //         endpoint_port: 8081,
+        //         vendor: Owned([66, 105, 116, 109, 97, 105, 110]),
+        //         hardware_version: Owned([57, 48, 49]),
+        //         firmware: Owned([97, 98, 99, 88]),
+        //         device_id: Owned([56, 57, 53, 54, 55]),
+        //     }),
+        //     serialized: None,
+        // };
+        let setup_connection = encoder.encode(setup_connection).unwrap();
+        let expected = [
+            0, 0, 0, 42, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 7, 48, 46, 48, 46, 48, 46, 48, 145, 31,
+            7, 66, 105, 116, 109, 97, 105, 110, 3, 57, 48, 49, 4, 97, 98, 99, 88, 5, 56, 57, 53,
+            54, 55,
+        ]
+        .to_vec();
+        // [0 (extension_type?), 0 (msg_type?), 0 (?), 42 (msg_length), 0 (?), 0 (?), 2 (protocol?), 2 (min_version?),  0 (?), 2 (?), 0 (?), 0 (?), 0 (?), 0 (?), 0 (?), 7 (len), 48 (0), 46(.), 48 (0), 46(.), 48 (0), 46(.), 48 (0), 145 (?), 31 (?), 7 (len),  66 (B), 105 (i), 116 (t), 109 (m), 97 (a), 105(i), 110 (n), 3 (len), 57 (9), 48 (0), 49 (1), 4 (len), 97 (a), 98 (b), 99 (c), 88 (X), 5(len), 56 (8), 57 (9), 53 (5), 54 (6), 55 (7)]
+        assert_eq!(expected, setup_connection);
+    }
+}
