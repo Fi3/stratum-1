@@ -379,37 +379,97 @@ mod tests {
     use super::*;
     use common_messages_sv2::Protocol;
 
-    fn get_setup_connection() -> SetupConnection<'static> {
-        let setup_connection = SetupConnection {
-            protocol: Protocol::TemplateDistributionProtocol, // 2
-            min_version: 2,
-            max_version: 2,
-            flags: 0,
-            endpoint_host: "0.0.0.0".to_string().into_bytes().try_into().unwrap(),
-            endpoint_port: 8081,
-            vendor: "Bitmain".to_string().into_bytes().try_into().unwrap(),
-            hardware_version: "901".to_string().into_bytes().try_into().unwrap(),
-            firmware: "abcX".to_string().into_bytes().try_into().unwrap(),
-            device_id: "89567".to_string().into_bytes().try_into().unwrap(),
-        };
-        return setup_connection;
+    #[ignore]
+    #[test]
+    fn test_encoder_wrapper_error_when_not_freed() {
+        let mut encoder_wrapper = new_encoder();
+        println!("ENCODER_WRAPPER: {:?}", &encoder_wrapper);
+        // let expect = MESSAGE_TYPE_COINBASE_OUTPUT_DATA_SIZE;
+        // let cb_output_data_size = CoinbaseOutputDataSize {
+        //     coinbase_output_max_additional_size: 0,
+        // };
+        // let mut csv2_message = CSv2Message::CoinbaseOutputDataSize(cb_output_data_size);
+        let encoder = free_encoder(encoder_wrapper);
+        println!("ENCODER_WRAPPER: {:?}", &encoder_wrapper);
+        assert_eq!(0, 0);
     }
+    fn get_setup_connection_w_params(
+        protocol: Protocol,
+        min_version: u16,
+        max_version: u16,
+        flags: u32,
+        endpoint_host: String,
+        endpoint_port: u16,
+        vendor: String,
+        hardware_version: String,
+        firmware: String,
+        device_id: String,
+    ) -> SetupConnection<'static> {
+        SetupConnection {
+            protocol,
+            min_version,
+            max_version,
+            flags,
+            endpoint_host: endpoint_host.into_bytes().try_into().unwrap(),
+            endpoint_port,
+            vendor: vendor.into_bytes().try_into().unwrap(),
+            hardware_version: hardware_version.into_bytes().try_into().unwrap(),
+            firmware: firmware.into_bytes().try_into().unwrap(),
+            device_id: device_id.into_bytes().try_into().unwrap(),
+        }
+    }
+
+    fn get_setup_connection() -> SetupConnection<'static> {
+        get_setup_connection_w_params(
+            Protocol::TemplateDistributionProtocol,
+            2,
+            2,
+            0,
+            "0.0.0.0".to_string(),
+            8081,
+            "Bitmain".to_string(),
+            "901".to_string(),
+            "abcX".to_string(),
+            "89567".to_string(),
+        )
+    }
+
+    // #[test]
+    // fn test_encode_cb_output_data_size() {
+    //     let expect = 0;
+    //     let actual = 0;
+    //
+    //     let encoder = Encoder::<CoinbaseOutputDataSize>::new();
+    //
+    //     let cb_output_data_size = CoinbaseOutputDataSize {
+    //         coinbase_output_max_additional_size: 0,
+    //     };
+    //     let sv2_message = Sv2Message::CoinbaseOutputDataSize(cb_output_data_size);
+    //     let sv2_message =
+    //         StandardSv2Frame::from_message(sv2_message, MESSAGE_TYPE_COINBASE_OUTPUT_DATA_SIZE, 0)
+    //             .unwrap();
+    //     let sv2_message = encoder.encode(sv2_message).unwrap();
+    //     println!("SV2_MESSAGE: {:?}", &sv2_message);
+    //     println!("ENCODER: {:?}", &encoder);
+    //
+    //     assert_eq!(expect, actual);
+    // }
 
     #[test]
     fn test_message_type_cb_output_data_size() {
-        let expected = MESSAGE_TYPE_COINBASE_OUTPUT_DATA_SIZE;
+        let expect = MESSAGE_TYPE_COINBASE_OUTPUT_DATA_SIZE;
         let cb_output_data_size = CoinbaseOutputDataSize {
             coinbase_output_max_additional_size: 0,
         };
         let sv2_message = Sv2Message::CoinbaseOutputDataSize(cb_output_data_size);
         let actual = sv2_message.message_type();
 
-        assert_eq!(expected, actual);
+        assert_eq!(expect, actual);
     }
 
     #[test]
     fn test_message_type_new_template() {
-        let expected = MESSAGE_TYPE_NEW_TEMPLATE;
+        let expect = MESSAGE_TYPE_NEW_TEMPLATE;
         let new_template = NewTemplate {
             template_id: 0,
             future_template: false,
@@ -431,7 +491,7 @@ mod tests {
         let sv2_message = Sv2Message::NewTemplate(new_template);
         let actual = sv2_message.message_type();
 
-        assert_eq!(expected, actual);
+        assert_eq!(expect, actual);
     }
 
     #[test]
@@ -585,41 +645,49 @@ mod tests {
         let _res = next_frame(&mut decoder_wrapper);
     }
 
+    // #[test]
+    // #[ignore]
+    // fn test_encode_setup_connection() {
+    //     let mut encoder = Encoder::<SetupConnection>::new();
+    //     let setup_connection = get_setup_connection();
+    //     let setup_connection =
+    //         StandardSv2Frame::from_message(setup_connection, MESSAGE_TYPE_SETUP_CONNECTION, 0)
+    //             .unwrap();
+    //     println!("SETUPCONN: {:?}", &setup_connection);
+    //     // println!("ENCODEDE_LEN: {:?}", setup_connection.encoded_length());
+    //     // let fb = &setup_connection.from_bytes();
+    //     // println!("FB: {:?}", &fb);
+    //     let setup_connection = encoder.encode(setup_connection).unwrap();
+    //     let expect = [
+    //         0, 0, 0, 42, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 7, 48, 46, 48, 46, 48, 46, 48, 145, 31,
+    //         7, 66, 105, 116, 109, 97, 105, 110, 3, 57, 48, 49, 4, 97, 98, 99, 88, 5, 56, 57, 53,
+    //         54, 55,
+    //     ]
+    //     .to_vec();
+    //     let mut decoder = StandardDecoder::<Sv2Message<'static>>::new();
+    //     assert_eq!(expect, setup_connection);
+    // }
+
     #[test]
-    fn test_encode() {
-        let mut encoder = Encoder::<SetupConnection>::new();
-        let setup_connection = get_setup_connection();
-        let setup_connection =
-            StandardSv2Frame::from_message(setup_connection, MESSAGE_TYPE_SETUP_CONNECTION, 0)
-                .unwrap();
-        // let setup_connection = Sv2Frame {
-        //     header: Header {
-        //         extesion_type: 0,
-        //         msg_type: 0,
-        //         msg_length: U24(42),
-        //     },
-        //     payload: Some(SetupConnection {
-        //         protocol: TemplateDistributionProtocol, // 2
-        //         min_version: 2,
-        //         max_version: 2,
-        //         flags: 0,
-        //         endpoint_host: Owned([48, 46, 48, 46, 48, 46, 48]),
-        //         endpoint_port: 8081,
-        //         vendor: Owned([66, 105, 116, 109, 97, 105, 110]),
-        //         hardware_version: Owned([57, 48, 49]),
-        //         firmware: Owned([97, 98, 99, 88]),
-        //         device_id: Owned([56, 57, 53, 54, 55]),
-        //     }),
-        //     serialized: None,
-        // };
-        let setup_connection = encoder.encode(setup_connection).unwrap();
-        let expected = [
+    fn test_encode_decode_setup_connection() {
+        // [0, 0 (extension_type, u16), 0 (msg_type, u8), 42, 0, 0 (msg_length, U24), 2 (protocol, u8), 2,
+        // 0 (min_version, u16), 2, 0  (max_version, u16), 0, 0, 0, 0 (flags, u32), 7 (len), 48 (0), 46(.),
+        // 48 (0), 46(.), 48 (0), 46(.), 48 (0), 145 (?), 31 (?), 7 (len),  66 (B), 105 (i), 116 (t),
+        // 109 (m), 97 (a), 105(i), 110 (n), 3 (len), 57 (9), 48 (0), 49 (1), 4 (len), 97 (a), 98 (b),
+        // 99 (c), 88 (X), 5(len), 56 (8), 57 (9), 53 (5), 54 (6), 55 (7)]
+        let expect = [
             0, 0, 0, 42, 0, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 7, 48, 46, 48, 46, 48, 46, 48, 145, 31,
             7, 66, 105, 116, 109, 97, 105, 110, 3, 57, 48, 49, 4, 97, 98, 99, 88, 5, 56, 57, 53,
             54, 55,
         ]
         .to_vec();
-        // [0(?), 0 (extension_type), 0 (msg_type), 42 (msg_length), 0 (?), 0 (?), 2 (protocol?), 2 (min_version?),  0 (?), 2 (?), 0 (?), 0 (?), 0 (?), 0 (?), 0 (?), 7 (len), 48 (0), 46(.), 48 (0), 46(.), 48 (0), 46(.), 48 (0), 145 (?), 31 (?), 7 (len),  66 (B), 105 (i), 116 (t), 109 (m), 97 (a), 105(i), 110 (n), 3 (len), 57 (9), 48 (0), 49 (1), 4 (len), 97 (a), 98 (b), 99 (c), 88 (X), 5(len), 56 (8), 57 (9), 53 (5), 54 (6), 55 (7)]
-        assert_eq!(expected, setup_connection);
+
+        let mut encoder = Encoder::<SetupConnection>::new();
+        let setup_connection = get_setup_connection();
+        let setup_connection =
+            StandardSv2Frame::from_message(setup_connection, MESSAGE_TYPE_SETUP_CONNECTION, 0)
+                .unwrap();
+        let actual = encoder.encode(setup_connection).unwrap();
+        assert_eq!(expect, actual);
     }
 }
