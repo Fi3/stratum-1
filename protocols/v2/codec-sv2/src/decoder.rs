@@ -63,8 +63,8 @@ impl<'a, T: Serialize + GetSize + Deserialize<'a>, B: Buffer> WithNoise<B, T> {
 
                 // DECRYPT THE ENCRYPTED PAYLOAD
                 let len = TransportMode::size_hint_decrypt(src.len());
-                let mut decrypted = self.sv2_buffer.get_writable(len);
-                transport_mode.read(src, &mut decrypted).map_err(|_| ())?;
+                let decrypted = self.sv2_buffer.get_writable(len);
+                transport_mode.read(src, decrypted).map_err(|_| ())?;
 
                 // IF THE DECODER IS RECEIVING A FRAGMENTED FRAME ADD THE DECRYPTED DATA TO THE
                 // PARTIAL FRAME AND CHECK IF READY
@@ -124,7 +124,7 @@ impl<'a, T: Serialize + GetSize + Deserialize<'a>, B: Buffer> WithNoise<B, T> {
     fn while_handshaking(&mut self) -> EitherFrame<T, B::Slice> {
         let src = self.noise_buffer.get_data_owned().as_mut().to_vec();
 
-        // below is inffalible as noise frame lenght has been already checked
+        // below is inffalible as noise frame length has been already checked
         let frame = HandShakeFrame::from_bytes_unchecked(src);
 
         frame.into()

@@ -24,7 +24,7 @@ use core::convert::TryInto;
 /// always set hardware_version to a string describing, at least, the particular hardware/software
 /// package in use.
 ///
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct SetupConnection<'decoder> {
     /// [`Protocol`]
     pub protocol: Protocol,
@@ -49,6 +49,51 @@ pub struct SetupConnection<'decoder> {
     pub firmware: Str0255<'decoder>,
     #[cfg_attr(feature = "with_serde", serde(borrow))]
     pub device_id: Str0255<'decoder>,
+}
+
+impl<'decoder> SetupConnection<'decoder> {
+    pub fn set_requires_standard_job(&mut self) {
+        self.flags |= 0b_1000_0000_0000_0000_0000_0000_0000_0000
+    }
+
+    /// Check if passed flags support self flag
+    pub fn check_flags(protocol: Protocol, required_flags: u32, avaiable_flags: u32) -> bool {
+        match protocol {
+            // [0] [0] -> true
+            // [0] [1] -> false
+            // [1] [1] -> true
+            // [0] [1] -> false
+            Protocol::MiningProtocol => {
+                let requires_work_selection_passed = (avaiable_flags >> 30) > 0;
+                let requires_version_rolling_passed = (avaiable_flags >> 29) > 0;
+
+                let requires_work_selection_self = (required_flags >> 30) > 0;
+                let requires_version_rolling_self = (required_flags >> 29) > 0;
+
+                let work_selection =
+                    !requires_work_selection_self || requires_work_selection_passed;
+                let version_rolling =
+                    !requires_version_rolling_self || requires_version_rolling_passed;
+
+                work_selection && version_rolling
+            }
+            _ => todo!(),
+        }
+    }
+
+    /// Check if passed versions support self versions if yes return the biggest version avaiable
+    pub fn get_version(&self, min_version: u16, max_version: u16) -> Option<u16> {
+        if self.min_version > max_version || min_version > self.max_version {
+            None
+        } else {
+            Some(self.max_version.min(max_version))
+        }
+    }
+
+    pub fn requires_standard_job(&self) -> bool {
+        let flag = self.flags >> 31;
+        flag != 0
+    }
 }
 
 #[repr(C)]
@@ -130,7 +175,7 @@ impl<'a> From<SetupConnection<'a>> for CSetupConnection {
 /// ## SetupConnection.Success (Server -> Client)
 /// Response to [`SetupConnection`] message if the server accepts the connection. The client is
 /// required to verify the set of feature flags that the server supports and act accordingly.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[repr(C)]
 pub struct SetupConnectionSuccess {
     /// Selected version proposed by the connecting node that the upstream
@@ -153,7 +198,7 @@ pub struct SetupConnectionSuccess {
 /// the full set of flags which it does not support in each [`SetupConnectionError`] message and
 /// MUST consistently support the same set of flags across all servers on the same hostname and
 /// port number. If flags is 0, the error is a result of some condition aside from unsupported flags.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct SetupConnectionError<'decoder> {
     /// Flags indicating features causing an error.
     pub flags: u32,
@@ -215,7 +260,7 @@ impl<'a> From<SetupConnectionError<'a>> for CSetupConnectionError {
 /// TemplateDistributionProtocol = [`SV2_TEMPLATE_DISTR_PROTOCOL_DISCRIMINANT`],
 /// JobDistributionProtocol = [`SV2_JOB_DISTR_PROTOCOL_DISCRIMINANT`],
 #[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 #[allow(clippy::enum_variant_names)]
 pub enum Protocol {

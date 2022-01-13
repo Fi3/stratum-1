@@ -1,9 +1,9 @@
 use core::sync::atomic::Ordering;
 use iai::{black_box, main};
 
-use buffer::BufferFromSystemMemory as BufferFromMemory;
-use buffer::BufferPool as Pool;
-use buffer::{Buffer, Slice};
+use buffer_sv2::BufferFromSystemMemory as BufferFromMemory;
+use buffer_sv2::BufferPool as Pool;
+use buffer_sv2::{Buffer, Slice};
 use core::time::Duration;
 use rand::Rng;
 
@@ -45,10 +45,10 @@ fn with_pool_trreaded_1() {
     let mut rng = rand::thread_rng();
     let d = Duration::from_micros(10);
     for i in 0..1000 {
-        let message_lenght = 2_usize.pow(14) - rng.gen_range(0..12000);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        let message_length = 2_usize.pow(14) - rng.gen_range(0..12000);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
     }
 }
@@ -61,10 +61,10 @@ fn with_pool_trreaded_2() {
     let mut rng = rand::thread_rng();
     let d = Duration::from_nanos(10);
     for i in 0..1000 {
-        let message_lenght = 2_usize.pow(14) - rng.gen_range(0..12000);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        let message_length = 2_usize.pow(14) - rng.gen_range(0..12000);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
         std::thread::sleep(d);
     }
@@ -78,10 +78,10 @@ fn without_pool_threaded_1() {
     let mut rng = rand::thread_rng();
     let d = Duration::from_micros(10);
     for i in 0..1000 {
-        let message_lenght = 2_usize.pow(16) - rng.gen_range(0..12000);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        let message_length = 2_usize.pow(16) - rng.gen_range(0..12000);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(buffer.get_data_owned(), d);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(buffer.get_data_owned(), d);
     }
 }
@@ -95,10 +95,10 @@ fn without_pool_threaded_2() {
     let mut rng = rand::thread_rng();
     let d = Duration::from_nanos(10);
     for i in 0..1000 {
-        let message_lenght = 2_usize.pow(16) - rng.gen_range(0..12000);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        let message_length = 2_usize.pow(16) - rng.gen_range(0..12000);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(buffer.get_data_owned(), d);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(buffer.get_data_owned(), d);
         std::thread::sleep(d);
     }
@@ -111,10 +111,10 @@ fn with_control_threaded() {
     let mut rng = rand::thread_rng();
     let d = Duration::from_micros(10);
     for i in 0..1000 {
-        let message_lenght = 2_usize.pow(14) - rng.gen_range(0..12000);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        let message_length = 2_usize.pow(14) - rng.gen_range(0..12000);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
     }
 }
@@ -126,10 +126,10 @@ fn with_control_threaded_2() {
     let mut rng = rand::thread_rng();
     let d = Duration::from_nanos(10);
     for i in 0..1000 {
-        let message_lenght = 2_usize.pow(14) - rng.gen_range(0..12000);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        let message_length = 2_usize.pow(14) - rng.gen_range(0..12000);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
         std::thread::sleep(d);
     }
@@ -142,10 +142,10 @@ fn with_control_max_threaded() {
     let mut rng = rand::thread_rng();
     let d = Duration::from_micros(10);
     for i in 0..1000 {
-        let message_lenght = 2_usize.pow(14) - rng.gen_range(0..12000);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        let message_length = 2_usize.pow(14) - rng.gen_range(0..12000);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
     }
 }
@@ -157,10 +157,10 @@ fn with_control_max_threaded_2() {
     let mut rng = rand::thread_rng();
     let d = Duration::from_nanos(10);
     for i in 0..1000 {
-        let message_lenght = 2_usize.pow(14) - rng.gen_range(0..12000);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        let message_length = 2_usize.pow(14) - rng.gen_range(0..12000);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
-        add_random_bytes(message_lenght, &mut pool, &data[i..]);
+        add_random_bytes(message_length, &mut pool, &data[i..]);
         keep_slice(pool.get_data_owned(), d);
         std::thread::sleep(d);
     }

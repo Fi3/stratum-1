@@ -29,14 +29,18 @@ const PARAMS: &str = const_sv2::NOISE_PARAMS;
 /// version: u16
 /// valid_from: u32
 /// not_valid_after: u32
+/// siganture len: u16 (64 little endian)
 /// siganture: 64 bytes
-pub const SIGNATURE_MESSAGE_LEN: usize = 74;
+pub const SIGNATURE_MESSAGE_LEN: usize = 76;
 
 /// Private snow constants redefined here
 pub const MAX_MESSAGE_SIZE: usize = const_sv2::NOISE_FRAME_MAX_SIZE;
 pub const SNOW_PSKLEN: usize = const_sv2::SNOW_PSKLEN;
 pub const SNOW_TAGLEN: usize = const_sv2::SNOW_TAGLEN;
 pub const HEADER_SIZE: usize = const_sv2::NOISE_FRAME_HEADER_SIZE;
+
+const BUFFER_LEN: usize =
+    SNOW_PSKLEN + SNOW_PSKLEN + SNOW_TAGLEN + SNOW_TAGLEN + SIGNATURE_MESSAGE_LEN;
 
 /// Generates noise specific static keypair specific for the current params
 pub fn generate_keypair() -> Result<StaticKeypair> {
@@ -137,17 +141,16 @@ impl handshake::Step for Initiator {
                 //
                 let in_msg = in_msg.ok_or(Error {})?;
 
-                let buffer_len = SIGNATURE_MESSAGE_LEN;
-                noise_bytes.resize(buffer_len, 0);
+                noise_bytes.resize(BUFFER_LEN, 0);
 
                 let signature_len = self
                     .handshake_state
-                    .read_message(&in_msg, &mut noise_bytes)
+                    .read_message(&in_msg[..], &mut noise_bytes)
                     .map_err(|_| Error {})?;
 
-                noise_bytes.truncate(signature_len);
+                debug_assert!(SIGNATURE_MESSAGE_LEN == signature_len);
 
-                self.verify_remote_static_key_signature(noise_bytes)?;
+                self.verify_remote_static_key_signature(noise_bytes[..signature_len].to_vec())?;
 
                 handshake::StepResult::Done
             }
@@ -264,8 +267,7 @@ impl handshake::Step for Responder {
                 //
                 let in_msg = in_msg.ok_or(Error {})?;
 
-                let buffer_len =
-                    SNOW_PSKLEN + SNOW_PSKLEN + SNOW_TAGLEN + SNOW_TAGLEN + SIGNATURE_MESSAGE_LEN;
+                let buffer_len = BUFFER_LEN;
 
                 noise_bytes.resize(buffer_len, 0);
 
@@ -281,8 +283,7 @@ impl handshake::Step for Responder {
                     .write_message(&self.signature_noise_message, &mut noise_bytes)
                     .map_err(|_| Error {})?;
 
-                noise_bytes.truncate(len_written);
-
+                debug_assert!(buffer_len == len_written);
                 handshake::StepResult::NoMoreReply(noise_bytes)
             }
             1 => handshake::StepResult::Done,
@@ -338,7 +339,7 @@ impl TransportMode {
     }
 
     /// Encrypt a message specified in `plain_msg` and write the encrypted message into a encrypted
-    /// It also encode the lenght of the encrypted message as the first 2 bytes
+    /// It also encode the length of the encrypted message as the first 2 bytes
     ///
     #[inline(always)]
     pub fn write(&mut self, plain_msg: &[u8], encrypted_msg: &mut [u8]) -> Result<()> {

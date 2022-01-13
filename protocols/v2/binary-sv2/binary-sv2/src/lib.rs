@@ -1,4 +1,6 @@
 // TODO unify errors from serde_sv2 and no-serde-sv2
+//
+use core::convert::TryInto;
 
 #[cfg(feature = "with_serde")]
 pub use serde::{self, Deserialize, Serialize};
@@ -9,6 +11,20 @@ pub use serde_sv2::*;
 pub use binary_codec_sv2::{self, Decodable as Deserialize, Encodable as Serialize, *};
 #[cfg(not(feature = "with_serde"))]
 pub use derive_codec_sv2::{Decodable as Deserialize, Encodable as Serialize};
+
+pub fn clone_message<T: Serialize>(_: T) -> T {
+    todo!()
+}
+
+pub fn u256_from_int<V: Into<u64>>(value: V) -> U256<'static> {
+    let mut u256 = vec![0_u8; 24];
+    let val: u64 = value.into();
+    for v in val.to_le_bytes() {
+        u256.push(v)
+    }
+    let u256: U256 = u256.try_into().unwrap();
+    u256
+}
 
 #[cfg(test)]
 mod test {
@@ -127,6 +143,23 @@ mod test {
 
             assert_eq!(deserialized, expected);
         }
+
+        #[test]
+        fn test_stro32_max() {
+            let mut stro32 = format!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA").into_bytes();
+            let stro32: Str032 = (&mut stro32[..]).try_into().unwrap();
+
+            let expected = Test { a: stro32 };
+
+            #[cfg(not(feature = "with_serde"))]
+            let mut bytes = to_bytes(expected.clone()).unwrap();
+            #[cfg(feature = "with_serde")]
+            let mut bytes = to_bytes(&expected.clone()).unwrap();
+
+            let deserialized: Test = from_bytes(&mut bytes[..]).unwrap();
+
+            assert_eq!(deserialized, expected);
+        }
     }
 
     mod test_b0255 {
@@ -142,6 +175,23 @@ mod test {
         #[test]
         fn test_b0255() {
             let mut b0255 = [6; 3];
+            let b0255: B0255 = (&mut b0255[..]).try_into().unwrap();
+
+            let expected = Test { a: b0255 };
+
+            #[cfg(not(feature = "with_serde"))]
+            let mut bytes = to_bytes(expected.clone()).unwrap();
+            #[cfg(feature = "with_serde")]
+            let mut bytes = to_bytes(&expected.clone()).unwrap();
+
+            let deserialized: Test = from_bytes(&mut bytes[..]).unwrap();
+
+            assert_eq!(deserialized, expected);
+        }
+
+        #[test]
+        fn test_b0255_max() {
+            let mut b0255 = [6; 255];
             let b0255: B0255 = (&mut b0255[..]).try_into().unwrap();
 
             let expected = Test { a: b0255 };
@@ -227,6 +277,24 @@ mod test {
         #[test]
         fn test_b016m() {
             let mut b = [0_u8; 70000];
+            let b: B016M = (&mut b[..]).try_into().unwrap();
+            //println!("{:?}", to_bytes(&b).unwrap().len());
+
+            let expected = Test { a: b, b: true };
+
+            #[cfg(not(feature = "with_serde"))]
+            let mut bytes = to_bytes(expected.clone()).unwrap();
+            #[cfg(feature = "with_serde")]
+            let mut bytes = to_bytes(&expected.clone()).unwrap();
+
+            let deserialized: Test = from_bytes(&mut bytes[..]).unwrap();
+
+            assert_eq!(deserialized, expected);
+        }
+
+        #[test]
+        fn test_b016m_max() {
+            let mut b = vec![0_u8; 16777215];
             let b: B016M = (&mut b[..]).try_into().unwrap();
             //println!("{:?}", to_bytes(&b).unwrap().len());
 

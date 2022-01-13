@@ -8,7 +8,7 @@ use core::convert::TryFrom;
 use std::io::{Error as E, Read, Write};
 
 #[repr(C)]
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum Inner<
     'a,
     const ISFIXED: bool,
@@ -21,25 +21,43 @@ pub enum Inner<
 }
 
 impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const MAXSIZE: usize>
+    PartialEq for Inner<'a, ISFIXED, SIZE, HEADERSIZE, MAXSIZE>
+{
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Inner::Ref(b), Inner::Owned(a)) => *b == &a[..],
+            (Inner::Owned(b), Inner::Ref(a)) => *a == &b[..],
+            (Inner::Owned(b), Inner::Owned(a)) => b == a,
+            (Inner::Ref(b), Inner::Ref(a)) => b == a,
+        }
+    }
+}
+
+impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const MAXSIZE: usize> Eq
+    for Inner<'a, ISFIXED, SIZE, HEADERSIZE, MAXSIZE>
+{
+}
+
+impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const MAXSIZE: usize>
     Inner<'a, ISFIXED, SIZE, HEADERSIZE, MAXSIZE>
 {
-    fn expected_lenght(data: &[u8]) -> Result<usize, Error> {
-        let expected_lenght = match ISFIXED {
-            true => Self::expected_lenght_fixed(),
-            false => Self::expected_lenght_variable(data)?,
+    fn expected_length(data: &[u8]) -> Result<usize, Error> {
+        let expected_length = match ISFIXED {
+            true => Self::expected_length_fixed(),
+            false => Self::expected_length_variable(data)?,
         };
-        if ISFIXED || expected_lenght <= MAXSIZE {
-            Ok(expected_lenght)
+        if ISFIXED || expected_length <= (MAXSIZE + HEADERSIZE) {
+            Ok(expected_length)
         } else {
             Err(Error::ReadError(data.len(), MAXSIZE))
         }
     }
 
-    fn expected_lenght_fixed() -> usize {
+    fn expected_length_fixed() -> usize {
         SIZE
     }
 
-    fn expected_lenght_variable(data: &[u8]) -> Result<usize, Error> {
+    fn expected_length_variable(data: &[u8]) -> Result<usize, Error> {
         if data.len() >= HEADERSIZE {
             let size = match HEADERSIZE {
                 0 => Ok(data.len()),
@@ -55,22 +73,22 @@ impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const 
     }
 
     #[cfg(not(feature = "no_std"))]
-    fn expected_lenght_for_reader(mut reader: impl Read) -> Result<usize, Error> {
+    fn expected_length_for_reader(mut reader: impl Read) -> Result<usize, Error> {
         if ISFIXED {
             Ok(SIZE)
         } else {
             let mut header = [0_u8; HEADERSIZE];
             reader.read_exact(&mut header)?;
-            let expected_lenght = match HEADERSIZE {
+            let expected_length = match HEADERSIZE {
                 1 => header[0] as usize,
                 2 => u16::from_le_bytes([header[0], header[1]]) as usize,
                 3 => u32::from_le_bytes([header[0], header[1], header[2], 0]) as usize,
                 _ => unimplemented!(),
             };
-            if expected_lenght <= MAXSIZE {
-                Ok(expected_lenght)
+            if expected_length <= (MAXSIZE + HEADERSIZE) {
+                Ok(expected_length)
             } else {
-                Err(Error::ReadError(expected_lenght, MAXSIZE))
+                Err(Error::ReadError(expected_length, MAXSIZE))
             }
         }
     }
@@ -144,11 +162,11 @@ impl<'a, const ISFIXED: bool, const HEADERSIZE: usize, const SIZE: usize, const 
     SizeHint for Inner<'a, ISFIXED, HEADERSIZE, SIZE, MAXSIZE>
 {
     fn size_hint(data: &[u8], offset: usize) -> Result<usize, Error> {
-        Self::expected_lenght(&data[offset..])
+        Self::expected_length(&data[offset..])
     }
 
     fn size_hint_(&self, data: &[u8], offset: usize) -> Result<usize, Error> {
-        Self::expected_lenght(&data[offset..])
+        Self::expected_length(&data[offset..])
     }
 }
 use crate::codec::decodable::FieldMarker;
@@ -177,7 +195,7 @@ where
 
     #[cfg(not(feature = "no_std"))]
     fn from_reader_(mut reader: &mut impl Read) -> Result<Self, Error> {
-        let size = Self::expected_lenght_for_reader(&mut reader)?;
+        let size = Self::expected_length_for_reader(&mut reader)?;
 
         let mut dst = vec![0; size];
 
@@ -230,14 +248,29 @@ impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const 
 }
 
 impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const MAXSIZE: usize>
-    Clone for Inner<'a, ISFIXED, SIZE, HEADERSIZE, MAXSIZE>
+    Inner<'a, ISFIXED, SIZE, HEADERSIZE, MAXSIZE>
 {
-    fn clone(&self) -> Self {
+    pub fn into_static(self) -> Inner<'static, ISFIXED, SIZE, HEADERSIZE, MAXSIZE> {
         match self {
             Inner::Ref(data) => {
                 let mut v = Vec::with_capacity(data.len());
                 v.extend_from_slice(data);
-                Self::Owned(v)
+                Inner::Owned(v)
+            }
+            Inner::Owned(data) => Inner::Owned(data),
+        }
+    }
+}
+
+impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const MAXSIZE: usize>
+    Clone for Inner<'a, ISFIXED, SIZE, HEADERSIZE, MAXSIZE>
+{
+    fn clone(&self) -> Inner<'static, ISFIXED, SIZE, HEADERSIZE, MAXSIZE> {
+        match self {
+            Inner::Ref(data) => {
+                let mut v = Vec::with_capacity(data.len());
+                v.extend_from_slice(data);
+                Inner::Owned(v)
             }
             Inner::Owned(data) => Inner::Owned(data.clone()),
         }
