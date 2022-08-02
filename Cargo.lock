@@ -1873,6 +1873,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "toml",
+ "v1",
 ]
 
 [[package]]
