@@ -233,7 +233,7 @@ pub trait IsClient {
     fn handle_message(
         &mut self,
         msg: json_rpc::Message,
-    ) -> Result<Option<json_rpc::Response>, Error>
+    ) -> Result<Option<json_rpc::Message>, Error>
     where
         Self: std::marker::Sized,
     {
@@ -243,7 +243,7 @@ pub trait IsClient {
             Ok(m) => match m {
                 Method::Server2ClientResponse(response) => {
                     let response = self.update_response(response)?;
-                    self.handle_response(response).map(|_| None)
+                    self.handle_response(response)
                 }
                 Method::Server2Client(request) => self.handle_request(request),
                 Method::Client2Server(_) => Err(Error::InvalidReceiver(m)),
@@ -281,7 +281,7 @@ pub trait IsClient {
     fn handle_request(
         &mut self,
         request: methods::Server2Client,
-    ) -> Result<Option<json_rpc::Response>, Error>
+    ) -> Result<Option<json_rpc::Message>, Error>
     where
         Self: std::marker::Sized,
     {
@@ -296,7 +296,7 @@ pub trait IsClient {
         }
     }
 
-    fn handle_response(&mut self, response: methods::Server2ClientResponse) -> Result<(), Error>
+    fn handle_response(&mut self, response: methods::Server2ClientResponse) -> Result<Option<json_rpc::Message>, Error>
     where
         Self: std::marker::Sized,
     {
@@ -306,22 +306,24 @@ pub trait IsClient {
                 self.set_version_rolling_mask(configure.version_rolling_mask());
                 self.set_version_rolling_min_bit(configure.version_rolling_min_bit());
                 self.set_status(ClientStatus::Configured);
-                Ok(())
+                let subscribe = self.subscribe(todo!(), todo!()).ok();
+                Ok(subscribe)
             }
             methods::Server2ClientResponse::Subscribe(subscribe) => {
                 self.handle_subscribe(&subscribe)?;
                 self.set_extranonce1(subscribe.extra_nonce1);
                 self.set_extranonce2_size(subscribe.extra_nonce2_size);
                 self.set_status(ClientStatus::Subscribed);
-                Ok(())
+                let authorize = self.authorize(todo!(), todo!(), todo!()).ok();
+                Ok(authorize)
             }
             methods::Server2ClientResponse::Authorize(authorize) => {
                 if authorize.is_ok() {
                     self.authorize_user_name(authorize.user_name());
                 };
-                Ok(())
+                Ok(None)
             }
-            methods::Server2ClientResponse::Submit(_) => Ok(()),
+            methods::Server2ClientResponse::Submit(_) => Ok(None),
             // impossible state
             methods::Server2ClientResponse::GeneralResponse(_) => panic!(),
         }
@@ -330,7 +332,7 @@ pub trait IsClient {
     fn handle_error_message(
         &mut self,
         message: Message,
-    ) -> Result<Option<json_rpc::Response>, Error>;
+    ) -> Result<Option<json_rpc::Message>, Error>;
 
     /// Check if the client sent an Authorize request with the given id, if so it return the
     /// authorized name
