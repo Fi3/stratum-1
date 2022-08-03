@@ -8,7 +8,7 @@ use bitcoin::{
 use std::convert::TryInto;
 
 /// A mock representation of a Mining Device that produces block header hashes to be submitted by
-/// the `Client` to the Upstream node (either a SV1 Pool server or a SV1<->SV2 Translator Proxy
+/// the `Client` to the Upstream node (either a SV1 Pool server or a SV1 <-> SV2 Translator Proxy
 /// server).
 #[derive(Debug)]
 pub(crate) struct Miner {
@@ -67,6 +67,8 @@ impl Miner {
         self.header = Some(header);
     }
 
+    /// Called by the `Client` to retrieve the latest candidate block header hash. The actual
+    /// incrementing of the nonce is mocked out in a thread in `Client::new()`.
     pub(crate) fn next_share(&mut self) -> Result<(), ()> {
         let header = self.header.as_ref().ok_or(())?;
         let mut hash = header.block_hash().as_hash().into_inner();
