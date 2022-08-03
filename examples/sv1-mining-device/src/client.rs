@@ -19,17 +19,17 @@ use v1::{
 };
 
 use crate::{job::Job, miner::Miner};
-const ADDR: &str = "127.0.0.1:34255";
+const ADDR: &str = "127.0.0.1:34254";
 
 /// Represents the Mining Device client which is connected to a Upstream node (either a SV1 Pool
 /// server or a SV1 <-> SV2 Translator Proxy server).
-pub(crate) struct Client {
+pub struct Client {
     client_id: u32,
     extranonce1: HexBytes,
     extranonce2_size: usize,
     version_rolling_mask: Option<HexU32Be>,
     version_rolling_min_bit: Option<HexU32Be>,
-    pub(crate) status: ClientStatus,
+    pub status: ClientStatus,
     sented_authorize_request: Vec<(String, String)>, // (id, user_name)
     authorized: Vec<String>,
     /// Receives incoming messages from the SV1 Upstream node.
@@ -70,7 +70,7 @@ impl Client {
     ///    task. In this task, once `receiver_share` gets the information from `sender_share`, it is
     ///    formatted as a `v1::client_to_server::Submit` and then serialized into a json message
     ///    that is sent to the Upstream via `sender_outgoing`.
-    pub(crate) async fn new(client_id: u32) {
+    pub async fn new(client_id: u32) {
         let stream = std::sync::Arc::new(TcpStream::connect(ADDR).await.unwrap());
         let (reader, writer) = (stream.clone(), stream);
 
@@ -220,7 +220,7 @@ impl Client {
         self.sender_outgoing.send(msg).await.unwrap();
     }
 
-    pub(crate) async fn send_configure(&mut self) {
+    pub async fn send_configure(&mut self) {
         let id = time::SystemTime::now()
             .duration_since(time::SystemTime::UNIX_EPOCH)
             .unwrap()

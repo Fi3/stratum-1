@@ -2,13 +2,13 @@ use std::convert::TryInto;
 use v1::server_to_client;
 
 /// Represents a new Job built from an incoming `mining.notify` message from the Upstream server.
-pub(crate) struct Job {
+pub struct Job {
     /// ID of the job used while submitting share generated from this job.
     /// TODO: Currently is `u32` and is hardcoded, but should be String and set by the incoming
     /// `mining.notify` message.
-    pub(crate) job_id: u32,
+    pub job_id: u32,
     /// Hash of previous block
-    pub(crate) prev_hash: [u8; 32],
+    pub prev_hash: [u8; 32],
     /// Merkle root
     /// TODO: Currently is hardcoded. This field should be replaced with three fields: 1)
     /// `coinbase_1` - the first half of the coinbase transaction before the `extranonce` which is
@@ -18,9 +18,9 @@ pub(crate) struct Job {
     // coinbase_1: Vec<u32>,
     // coinbase_2: Vec<u32>,
     // merkle_brances: Vec<[u8; 32]>,
-    pub(crate) merkle_root: [u8; 32],
-    pub(crate) version: u32,
-    pub(crate) nbits: u32,
+    pub merkle_root: [u8; 32],
+    pub version: u32,
+    pub nbits: u32,
 }
 
 impl From<server_to_client::Notify> for Job {

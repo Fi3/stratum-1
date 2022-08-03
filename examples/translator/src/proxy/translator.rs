@@ -57,21 +57,21 @@ use v1::json_rpc;
 /// `Upstream`. It translates the messages into the appropriate protocol (SV1 or SV2) and routes
 /// them to them to the appropriate role (`Downstream` or `Upstream`). The SV1 and SV2 protocols
 /// are NOT 1-to-1, the `Translator` handles this.
-pub(crate) struct Translator {
+pub struct Translator {
     /// Sends SV1 messages to the `Downstream::receiver_upstream`. These messages are either
     /// translated from SV2 messages received from the `Upstream`, or generated specifically for
     /// the SV1 protocol.
-    pub(crate) sender_to_downstream: Sender<json_rpc::Message>,
+    pub sender_to_downstream: Sender<json_rpc::Message>,
     /// Receives SV1 messages to the `Downstream::receiver_upstream`. These messages are then
     /// handles by either translating them from SV1 to SV2 or dropped if not applicable to the SV2
     /// protocol.
-    pub(crate) receiver_from_downstream: Receiver<json_rpc::Message>,
+    pub receiver_from_downstream: Receiver<json_rpc::Message>,
     /// Sends SV2 messages to the `Upstream::receiver_downstream`.
-    pub(crate) sender_to_upstream: Sender<EitherFrame>,
+    pub sender_to_upstream: Sender<EitherFrame>,
     /// Receives SV2 messages from the `Upstream::sender_downstream`. These messages are then
     /// handled by either translating them from SV2 to SV1 or dropped if not applicable to the SV1
     /// protocol.
-    pub(crate) receiver_from_upstream: Receiver<EitherFrame>,
+    pub receiver_from_upstream: Receiver<EitherFrame>,
 }
 
 impl Translator {
@@ -89,7 +89,7 @@ impl Translator {
     /// 4. A channel for the `Translator` to send to the `Upstream` and for the `Upstream` to
     ///    receive from the `Translator`:
     ///    `(sender_upstream_for_proxy, receiver_for_upstream)`
-    pub(crate) async fn new() -> Self {
+    pub async fn new() -> Self {
         // A channel for the `Downstream` to send to the `Translator` and for the `Translator` to
         // receive from the `Downstream`
         let (sender_for_downstream, receiver_downstream_for_proxy): (

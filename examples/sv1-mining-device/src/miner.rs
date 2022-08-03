@@ -11,22 +11,22 @@ use std::convert::TryInto;
 /// the `Client` to the Upstream node (either a SV1 Pool server or a SV1 <-> SV2 Translator Proxy
 /// server).
 #[derive(Debug)]
-pub(crate) struct Miner {
+pub struct Miner {
     /// Mock of mined candidate block header.
-    pub(crate) header: Option<BlockHeader>,
+    pub header: Option<BlockHeader>,
     /// Current mining target.
-    pub(crate) target: Option<Uint256>,
+    pub target: Option<Uint256>,
     /// ID of the job used while submitting share generated from this job.
-    pub(crate) job_id: Option<u32>,
+    pub job_id: Option<u32>,
     /// Block header version
-    pub(crate) version: Option<u32>,
+    pub version: Option<u32>,
     /// TODO: RRQ: Remove?
-    pub(crate) handicap: u32,
+    pub handicap: u32,
 }
 
 impl Miner {
     /// Instantiates a new Miner instance.
-    pub(crate) fn new(handicap: u32) -> Self {
+    pub fn new(handicap: u32) -> Self {
         Self {
             target: None,
             header: None,
@@ -37,14 +37,14 @@ impl Miner {
     }
 
     /// Updates target when a new target is received by the SV1 `Client`.
-    pub(crate) fn new_target(&mut self, target: Uint256) {
+    pub fn new_target(&mut self, target: Uint256) {
         self.target = Some(target);
     }
 
     /// Mocks out the mining of a new candidate block header.
     /// `Client` calls `new_header` when it receives a new `mining.notify` message from the
     /// Upstream node indicating the `Miner` should start mining on a new job.
-    pub(crate) fn new_header(&mut self, new_job: Job) {
+    pub fn new_header(&mut self, new_job: Job) {
         self.job_id = Some(new_job.job_id);
         self.version = Some(new_job.version);
         let prev_hash: [u8; 32] = new_job.prev_hash;
@@ -69,7 +69,7 @@ impl Miner {
 
     /// Called by the `Client` to retrieve the latest candidate block header hash. The actual
     /// incrementing of the nonce is mocked out in a thread in `Client::new()`.
-    pub(crate) fn next_share(&mut self) -> Result<(), ()> {
+    pub fn next_share(&mut self) -> Result<(), ()> {
         let header = self.header.as_ref().ok_or(())?;
         let mut hash = header.block_hash().as_hash().into_inner();
         hash.reverse();

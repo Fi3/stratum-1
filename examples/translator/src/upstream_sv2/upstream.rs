@@ -35,7 +35,7 @@ impl Upstream {
     /// Connect to the SV2 Upstream role (most typically a SV2 Pool). Initialize the
     /// `UpstreamConnection` with a channel to send and receive messages to the SV2 Upstream role,
     /// and a channel to send and receive messages from the Downstream Translator Proxy.
-    pub(crate) async fn new(
+    pub async fn new(
         address: SocketAddr,
         authority_public_key: [u8; 32],
         sender_downstream: Sender<EitherFrame>,
@@ -84,9 +84,8 @@ impl Upstream {
             .unwrap()
             .try_into()
             .unwrap();
-        // Gets the binary frame message type from the message header
+
         let message_type = incoming.get_header().unwrap().msg_type();
-        // Gets the message payload
         let payload = incoming.payload();
 
         // TODO: Initialize an empty `ProxyDownstreamMiningSelector`, but should instead pass in a

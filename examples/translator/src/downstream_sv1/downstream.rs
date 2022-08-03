@@ -17,7 +17,7 @@ use v1::{
 /// Handles the sending and receiving of messages to and from an SV2 Upstream role (most typically
 /// a SV2 Pool server).
 #[derive(Debug)]
-pub(crate) struct Downstream {
+pub struct Downstream {
     authorized_names: Vec<String>,
     extranonce1: HexBytes,
     extranonce2_size: usize,

@@ -1,7 +1,7 @@
-pub(crate) mod client;
-pub(crate) mod job;
-pub(crate) mod miner;
-pub(crate) use client::Client;
+pub mod client;
+pub mod job;
+pub mod miner;
+pub use client::Client;
 
 #[async_std::main]
 async fn main() {
