@@ -230,10 +230,7 @@ pub trait IsClient {
     /// [a]: crate::...
     /// [b]:
     ///
-    fn handle_message(
-        &mut self,
-        msg: json_rpc::Message,
-    ) -> Result<Option<json_rpc::Message>, Error>
+    fn handle_message(&mut self, msg: json_rpc::Message) -> Result<Option<json_rpc::Message>, Error>
     where
         Self: std::marker::Sized,
     {
@@ -296,7 +293,10 @@ pub trait IsClient {
         }
     }
 
-    fn handle_response(&mut self, response: methods::Server2ClientResponse) -> Result<Option<json_rpc::Message>, Error>
+    fn handle_response(
+        &mut self,
+        response: methods::Server2ClientResponse,
+    ) -> Result<Option<json_rpc::Message>, Error>
     where
         Self: std::marker::Sized,
     {

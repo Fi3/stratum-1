@@ -150,8 +150,8 @@ impl handshake::Step for Initiator {
                 // <- chosen algorithm
                 let mut in_msg = in_msg.ok_or(Error {})?;
                 let negotiation_message: NegotiationMessage =
-                    dbg!(from_bytes(in_msg.as_mut()).map_err(|_| Error {})?);
-                let algos = dbg!(negotiation_message.get_algos()?);
+                    from_bytes(in_msg.as_mut()).map_err(|_| Error {})?;
+                let algos = negotiation_message.get_algos()?;
 
                 if algos.len() != 1 {
                     return Err(Error {});
@@ -308,10 +308,10 @@ impl Responder {
     ) -> Result<()> {
         let builder = NoiseParamsBuilder::new(algo).get_builder();
 
-        self.handshake_state = dbg!(builder
+        self.handshake_state = builder
             .local_private_key(&self.private)
             .prologue(prologue)
-            .build_responder())
+            .build_responder()
         .map_err(|_| Error {})?;
         Ok(())
     }

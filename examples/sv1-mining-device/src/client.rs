@@ -10,14 +10,10 @@ use bitcoin::{
 
 use async_channel::{bounded, Receiver, Sender};
 
-use async_std::{
-    io::BufReader,
-    prelude::*,
-    task,
-};
-use std::time;
-use std::sync::Arc;
+use async_std::{io::BufReader, prelude::*, task};
 use roles_logic_sv2::utils::Mutex;
+use std::sync::Arc;
+use std::time;
 
 const ADDR: &str = "127.0.0.1:34254";
 
@@ -70,7 +66,6 @@ impl Client {
                 (&*writer).write_all(message.as_bytes()).await.unwrap();
             }
         });
-
 
         let mut client = Client {
             client_id,
@@ -127,9 +122,7 @@ impl Client {
             println!("CIENT {} - message: {}", self.client_id, line);
             let message: json_rpc::Message = serde_json::from_str(&line).unwrap();
             match self.handle_message(message).unwrap() {
-                Some(m) =>  {
-                    self.send_message(m).await
-                },
+                Some(m) => self.send_message(m).await,
                 None => (),
             }
         };
@@ -249,10 +242,10 @@ impl IsClient for Client {
 
 struct Job {
     job_id: u32,
-    prev_hash: [u8;32],
+    prev_hash: [u8; 32],
     nbits: u32,
     version: u32,
-    merkle_root: [u8;32],
+    merkle_root: [u8; 32],
 }
 
 impl From<v1::methods::server_to_client::Notify> for Job {
