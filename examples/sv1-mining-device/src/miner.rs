@@ -12,15 +12,20 @@ use std::convert::TryInto;
 /// server).
 #[derive(Debug)]
 pub(crate) struct Miner {
+    /// Mock of mined candidate block header.
     pub(crate) header: Option<BlockHeader>,
+    /// Current mining target.
     pub(crate) target: Option<Uint256>,
+    /// ID of the job used while submitting share generated from this job.
     pub(crate) job_id: Option<u32>,
+    /// Block header version
     pub(crate) version: Option<u32>,
     /// TODO: RRQ: Remove?
     pub(crate) handicap: u32,
 }
 
 impl Miner {
+    /// Instantiates a new Miner instance.
     pub(crate) fn new(handicap: u32) -> Self {
         Self {
             target: None,
@@ -31,10 +36,14 @@ impl Miner {
         }
     }
 
+    /// Updates target when a new target is received by the SV1 `Client`.
     pub(crate) fn new_target(&mut self, target: Uint256) {
         self.target = Some(target);
     }
 
+    /// Mocks out the mining of a new candidate block header.
+    /// `Client` calls `new_header` when it receives a new `mining.notify` message from the
+    /// Upstream node indicating the `Miner` should start mining on a new job.
     pub(crate) fn new_header(&mut self, new_job: Job) {
         self.job_id = Some(new_job.job_id);
         self.version = Some(new_job.version);
@@ -57,6 +66,7 @@ impl Miner {
         };
         self.header = Some(header);
     }
+
     pub(crate) fn next_share(&mut self) -> Result<(), ()> {
         let header = self.header.as_ref().ok_or(())?;
         let mut hash = header.block_hash().as_hash().into_inner();

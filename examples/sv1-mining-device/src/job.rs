@@ -23,7 +23,6 @@ pub(crate) struct Job {
     pub(crate) nbits: u32,
 }
 
-// impl From<v1::methods::server_to_client::Notify> for Job {
 impl From<server_to_client::Notify> for Job {
     fn from(notify_msg: v1::methods::server_to_client::Notify) -> Self {
         // TODO: Hard coded for demo. Should be properly translated from received Notify message
