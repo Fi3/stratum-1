@@ -306,7 +306,9 @@ pub trait IsClient {
                 self.set_version_rolling_mask(configure.version_rolling_mask());
                 self.set_version_rolling_min_bit(configure.version_rolling_min_bit());
                 self.set_status(ClientStatus::Configured);
-                let subscribe = self.subscribe(todo!(), todo!()).ok();
+                // let subscribe = self.subscribe(todo!(), todo!()).ok();
+                // TODO: extranonce is hardcoded to None
+                let subscribe = self.subscribe(configure.id, None).ok();
                 Ok(subscribe)
             }
             methods::Server2ClientResponse::Subscribe(subscribe) => {
