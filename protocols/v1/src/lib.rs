@@ -306,9 +306,12 @@ pub trait IsClient {
                 self.set_version_rolling_mask(configure.version_rolling_mask());
                 self.set_version_rolling_min_bit(configure.version_rolling_min_bit());
                 self.set_status(ClientStatus::Configured);
+                println!("WARNING: Subscribe extranonce is hardcoded");
                 // let subscribe = self.subscribe(todo!(), todo!()).ok();
-                // TODO: extranonce is hardcoded to None
-                let subscribe = self.subscribe(configure.id, None).ok();
+                // TODO: extranonce is hardcoded to 0x08000002
+                let subscribe = self
+                    .subscribe(configure.id, Some("08000002".try_into().unwrap()))
+                    .ok();
                 Ok(subscribe)
             }
             methods::Server2ClientResponse::Subscribe(subscribe) => {
@@ -316,7 +319,12 @@ pub trait IsClient {
                 self.set_extranonce1(subscribe.extra_nonce1);
                 self.set_extranonce2_size(subscribe.extra_nonce2_size);
                 self.set_status(ClientStatus::Subscribed);
-                let authorize = self.authorize(todo!(), todo!(), todo!()).ok();
+                println!("WARNING: Authorize username + password are hardcoded");
+                // TODO: authorize user + password are hardcoded to user
+                // let authorize = self.authorize(todo!(), todo!(), todo!()).ok();
+                let authorize = self
+                    .authorize(subscribe.id, "user".into(), "user".into())
+                    .ok();
                 Ok(authorize)
             }
             methods::Server2ClientResponse::Authorize(authorize) => {
