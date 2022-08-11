@@ -38,7 +38,7 @@ pub fn u256_to_uint_256(v: U256<'static>) -> Uint256 {
 
 impl ParseDownstreamMiningMessages<(), NullDownstreamMiningSelector, NoRouting> for Downstream {
     fn get_channel_type(&self) -> SupportedChannelTypes {
-        SupportedChannelTypes::Group
+        SupportedChannelTypes::GroupAndExtended
     }
 
     fn is_work_selection_enabled(&self) -> bool {
@@ -147,7 +147,8 @@ impl ParseDownstreamMiningMessages<(), NullDownstreamMiningSelector, NoRouting> 
         &mut self,
         incoming: OpenExtendedMiningChannel,
     ) -> Result<SendTo<()>, Error> {
-        if incoming.min_extranonce_size >= 16 {
+        let min_extranonce_size = incoming.min_extranonce_size / 8;
+        if min_extranonce_size >= 16 {
             todo!()
         };
         if self.downstream_data.header_only {
@@ -158,7 +159,7 @@ impl ParseDownstreamMiningMessages<(), NullDownstreamMiningSelector, NoRouting> 
         let extended = self
             .extranonces
             .safe_lock(|e| {
-                e.next_extended(incoming.min_extranonce_size as usize)
+                e.next_extended(min_extranonce_size as usize)
                     .unwrap()
                     .into_b032()
             })
