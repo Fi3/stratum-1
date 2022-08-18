@@ -31,6 +31,7 @@ use roles_logic_sv2::{
     utils::{Id, Mutex},
 };
 use std::{collections::HashMap, sync::Arc};
+use std::convert::{TryFrom,TryInto};
 
 type RLogic = MiningProxyRoutingLogic<
     crate::lib::downstream_mining::DownstreamMiningNode,
@@ -104,8 +105,30 @@ pub fn add_job_id(job_id: u32, up_id: u32, prev_job_id: Option<u32>) {
 pub struct UpstreamValues {
     address: String,
     port: u16,
+    pub_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpstreamValues_ {
+    address: String,
+    port: u16,
     pub_key: [u8; 32],
 }
+
+//impl TryFrom<UpstreamValues> for UpstreamValues_ {
+//    type Error = bs58::decode::Error;
+//
+//    fn try_from(value: UpstreamValues) -> Result<Self, Self::Error> {
+//        let pub_key = bs58::decode(value.pub_key).with_check(None).into_vec()?;
+//        assert!(pub_key.len() == 32);
+//        let pub_key: [u8;32] = pub_key.try_into().unwrap();
+//        Ok(Self {
+//            address: value.address,
+//            port: value.port,
+//            pub_key
+//        })
+//    }
+//}
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -114,6 +137,36 @@ pub struct Config {
     listen_mining_port: u16,
     max_supported_version: u16,
     min_supported_version: u16,
+}
+
+//#[derive(Debug)]
+//pub struct Config_ {
+//    upstreams: Vec<UpstreamValues_>,
+//    listen_address: String,
+//    listen_mining_port: u16,
+//    max_supported_version: u16,
+//    min_supported_version: u16,
+//}
+//
+//impl TryFrom<Config> for Config_ {
+//    type Error = bs58::decode::Error;
+//
+//    fn try_from(value: Config) -> Result<Self, Self::Error> {
+//        let upstreams: Result<Vec<UpstreamValues_>,Self::Error> = value.upstreams.into_iter().map(|v| v.try_into()).collect();
+//        Ok(Self {
+//            upstreams: upstreams?,
+//            listen_address: value.listen_address,
+//            listen_mining_port: value.listen_mining_port,
+//            max_supported_version: value.max_supported_version,
+//            min_supported_version: value.min_supported_version,
+//        })
+//    }
+//}
+
+pub fn deserialize_auth_pub_key(v: &String) -> [u8;32] {
+    let pub_key = bs58::decode(v).with_check(None).into_vec().unwrap();
+    assert!(pub_key.len() == 32);
+    dbg!(pub_key.try_into().unwrap())
 }
 
 pub fn initialize_r_logic() -> RLogic {
@@ -127,10 +180,12 @@ pub fn initialize_r_logic() -> RLogic {
         .map(|(index, upstream)| {
             let socket =
                 SocketAddr::new(IpAddr::from_str(&upstream.address).unwrap(), upstream.port);
+            let pub_key = deserialize_auth_pub_key(&upstream.pub_key);
+            //let pub_key = upstream.pub_key;
             Arc::new(Mutex::new(UpstreamMiningNode::new(
                 index as u32,
                 socket,
-                upstream.pub_key,
+                pub_key,
                 job_ids.clone(),
             )))
         })

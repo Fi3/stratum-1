@@ -150,8 +150,8 @@ impl handshake::Step for Initiator {
                 // <- chosen algorithm
                 let mut in_msg = in_msg.ok_or(Error {})?;
                 let negotiation_message: NegotiationMessage =
-                    dbg!(from_bytes(in_msg.as_mut()).map_err(|_| Error {})?);
-                let algos = dbg!(negotiation_message.get_algos()?);
+                    from_bytes(in_msg.as_mut()).map_err(|_| Error {})?;
+                let algos = negotiation_message.get_algos()?;
 
                 if algos.len() != 1 {
                     return Err(Error {});
@@ -172,6 +172,7 @@ impl handshake::Step for Initiator {
                     .write_message(&[], &mut noise_bytes)
                     .map_err(|_| Error {})?;
 
+                println!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA {:?}", noise_bytes);
                 noise_bytes.truncate(len_written);
 
                 handshake::StepResult::ExpectReply(noise_bytes)
@@ -181,17 +182,20 @@ impl handshake::Step for Initiator {
                 // <- e, ee, s, es, SIGNATURE_NOISE_MESSAGE
                 //
                 let in_msg = in_msg.ok_or(Error {})?;
+                println!("{} {}", in_msg.len(), BUFFER_LEN);
 
                 noise_bytes.resize(BUFFER_LEN, 0);
+                //let mut gigi = vec![0_u8;BUFFER_LEN];
 
                 let signature_len = self
                     .handshake_state
                     .read_message(&in_msg[..], &mut noise_bytes)
                     .map_err(|_| Error {})?;
 
+                println!("AAAAAAAAAAAAAA");
                 debug_assert!(SIGNATURE_MESSAGE_LEN == signature_len);
 
-                self.verify_remote_static_key_signature(noise_bytes[..signature_len].to_vec())?;
+                //self.verify_remote_static_key_signature(noise_bytes[..signature_len].to_vec())?;
 
                 handshake::StepResult::Done
             }
