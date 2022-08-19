@@ -119,9 +119,11 @@ impl Initiator {
         prologue: &[u8],
     ) -> Result<()> {
         let builder = NoiseParamsBuilder::new(algo).get_builder();
+        println!("prologue: {:?}", prologue);
+        //let prologue = vec![];
 
         self.handshake_state = builder
-            .prologue(prologue)
+            .prologue(&prologue)
             .build_initiator()
             .map_err(|_| Error {})?;
         Ok(())
@@ -148,7 +150,7 @@ impl handshake::Step for Initiator {
             }
             1 => {
                 // <- chosen algorithm
-                let mut in_msg = in_msg.ok_or(Error {})?;
+                let mut in_msg = dbg!(in_msg.ok_or(Error {})?);
                 let negotiation_message: NegotiationMessage =
                     from_bytes(in_msg.as_mut()).map_err(|_| Error {})?;
                 let algos = negotiation_message.get_algos()?;

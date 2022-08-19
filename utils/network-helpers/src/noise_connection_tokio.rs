@@ -22,7 +22,7 @@ pub struct Connection {
 
 impl Connection {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new<'a, Message: Serialize + Deserialize<'a> + GetSize + Send + 'static>(
+    pub async fn new<'a, Message: Serialize + Deserialize<'a> + GetSize + Send + std::fmt::Debug + 'static>(
         stream: TcpStream,
         role: HandshakeRole,
     ) -> (
@@ -56,6 +56,7 @@ impl Connection {
                 match reader.read_exact(writable).await {
                     Ok(_) => {
                         let mut connection = cloned1.lock().await;
+                        println!("AADASDADA {:?}", writable);
 
                         if let Ok(x) = decoder.next_frame(&mut connection.state) {
                             sender_incoming.send(x).await.unwrap();
@@ -136,7 +137,7 @@ impl Connection {
         }
     }
 
-    async fn initialize_as_downstream<'a, Message: Serialize + Deserialize<'a> + GetSize>(
+    async fn initialize_as_downstream<'a, Message: Serialize + Deserialize<'a> + GetSize + std::fmt::Debug>(
         role: HandshakeRole,
         sender_outgoing: Sender<StandardEitherFrame<Message>>,
         receiver_incoming: Receiver<StandardEitherFrame<Message>>,
