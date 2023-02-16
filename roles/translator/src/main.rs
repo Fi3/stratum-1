@@ -85,6 +85,19 @@ async fn main() {
         proxy_config.upstream_port,
     );
 
+    let upstream_kind = match proxy_config.jn_config {
+        None => upstream_sv2::UpstreamKind::Standard,
+        Some(jn_config) => {
+            // channel for template
+            let (send_tp, recv_tp) = bounded(10);
+            // channel for prev hash
+            let (send_ph, recv_ph) = bounded(10);
+            // channel to send coinbase_output_max_additional_size
+            // let (send_comas, recv_comas) = bounded(10);
+            upstream_sv2::UpstreamKind::WithNegotiator { recv_tp,recv_ph }
+        }
+    };
+
     // Instantiate a new `Upstream` (SV2 Pool)
     let upstream = match upstream_sv2::Upstream::new(
         upstream_addr,
@@ -96,6 +109,7 @@ async fn main() {
         tx_sv2_extranonce,
         status::Sender::Upstream(tx_status.clone()),
         target.clone(),
+        upstream_kind
     )
     .await
     {
