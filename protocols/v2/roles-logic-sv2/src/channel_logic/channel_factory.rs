@@ -674,6 +674,26 @@ impl ChannelFactory {
                 upstream_target, ..
             } => upstream_target.clone(),
         };
+        let last_job_id = self
+            .last_valid_job
+            .as_ref()
+            .ok_or(Error::ShareDoNotMatchAnyJob)?
+            .0
+            .job_id;
+        if m.get_job_id() != last_job_id {
+            println!("JOB ID: {:?}", last_job_id);
+            let error = SubmitSharesError {
+                channel_id: m.get_channel_id(),
+                sequence_number: m.get_sequence_number(),
+                // Infallible unwrap we already know the len of the error code (is a
+                // static string)
+                error_code: SubmitSharesError::stale_share_error_code()
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            };
+            return Ok(OnNewShare::SendErrorDownstream(error));
+        }
         let (downstream_target, extranonce) = self
             .get_channel_specific_mining_info(&m)
             .ok_or(Error::ShareDoNotMatchAnyChannel)?;
@@ -726,8 +746,22 @@ impl ChannelFactory {
         };
         let hash_ = header.block_hash();
         let hash = hash_.as_hash().into_inner();
-        println!("SHARE HASH: {:?}", &hash);
+        println!("\nSHARE HASH: {:?}", &hash);
         let hash: Target = hash.into();
+
+        let upstream_target_u256: binary_sv2::U256 = upstream_target.clone().into();
+        println!("UPSTREAM TARGET: {:?}", &upstream_target_u256.to_vec());
+
+        let downstream_target_u256: binary_sv2::U256 = downstream_target.clone().into();
+        println!("DOWNSTREAM TARGET: {:?}", &downstream_target_u256.to_vec());
+        println!("HEADER: {:?}\n", &header);
+        println!("SHARE: {:?}\n", &m);
+        println!("COINBASE PREFIX: {:?}\n", &coinbase_tx_prefix);
+        println!("COINBASE SUFFIX: {:?}\n", &coinbase_tx_suffix);
+        println!("EXTRANONCE: {:?}\n", &extranonce);
+
+        
+        
 
         if hash <= bitcoin_target {
             let coinbase = [coinbase_tx_prefix, &extranonce[..], coinbase_tx_suffix]

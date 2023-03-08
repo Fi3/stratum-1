@@ -10,7 +10,7 @@ use error_handling::handle_result;
 use futures::FutureExt;
 use tokio::sync::broadcast;
 
-use super::{kill, SUBSCRIBE_TIMEOUT_SECS};
+use super::{kill, SUBSCRIBE_TIMEOUT_SECS, SubmitShareWithChannelId};
 
 use roles_logic_sv2::{
     bitcoin::util::uint::Uint256,
@@ -33,6 +33,7 @@ use v1::{
 #[derive(Debug)]
 pub struct Downstream {
     /// List of authorized Downstream Mining Devices.
+    connection_id: u32,
     authorized_names: Vec<String>,
     extranonce1: Vec<u8>,
     /// `extranonce1` to be sent to the Downstream in the SV1 `mining.subscribe` message response.
@@ -44,7 +45,7 @@ pub struct Downstream {
     version_rolling_min_bit: Option<HexU32Be>,
     /// Sends a SV1 `mining.submit` message received from the Downstream role to the `Bridge` for
     /// translation into a SV2 `SubmitSharesExtended`.
-    tx_sv1_submit: Sender<(v1::client_to_server::Submit<'static>, Vec<u8>)>,
+    tx_sv1_submit: Sender<SubmitShareWithChannelId>,
     /// Sends message to the SV1 Downstream role.
     tx_outgoing: Sender<json_rpc::Message>,
     /// True if this is the first job received from `Upstream`.
@@ -57,7 +58,8 @@ impl Downstream {
     #[allow(clippy::too_many_arguments)]
     pub async fn new_downstream(
         stream: TcpStream,
-        tx_sv1_submit: Sender<(v1::client_to_server::Submit<'static>, Vec<u8>)>,
+        connection_id: u32,
+        tx_sv1_submit: Sender<SubmitShareWithChannelId>,
         mut rx_sv1_notify: broadcast::Receiver<server_to_client::Notify<'static>>,
         tx_status: status::Sender,
         extranonce1: Vec<u8>,
@@ -77,6 +79,7 @@ impl Downstream {
         let _socket_writer_notify = socket_writer;
 
         let downstream = Arc::new(Mutex::new(Downstream {
+            connection_id,
             authorized_names: vec![],
             extranonce1,
             //extranonce1: extranonce1.to_vec(),
@@ -261,6 +264,8 @@ impl Downstream {
     /// Converts target received by the `SetTarget` SV2 message from the Upstream role into the
     /// difficulty for the Downstream role sent via the SV1 `mining.set_difficulty` message.
     fn difficulty_from_target(target: Vec<u8>) -> ProxyResult<'static, f64> {
+        let mut target = target;
+        target.reverse();
         let target = target.as_slice();
 
         // If received target is 0, return 0
@@ -299,7 +304,7 @@ impl Downstream {
     /// new `Downstream` for each connection.
     pub fn accept_connections(
         downstream_addr: SocketAddr,
-        tx_sv1_submit: Sender<(v1::client_to_server::Submit<'static>, Vec<u8>)>,
+        tx_sv1_submit: Sender<SubmitShareWithChannelId>,
         tx_mining_notify: broadcast::Sender<server_to_client::Notify<'static>>,
         tx_status: status::Sender,
         bridge: Arc<Mutex<crate::proxy::Bridge>>,
@@ -322,6 +327,7 @@ impl Downstream {
                         info!("PROXY SERVER - ACCEPTING FROM DOWNSTREAM: {}", host);
                         Downstream::new_downstream(
                             stream,
+                            opened.channel_id,
                             tx_sv1_submit.clone(),
                             tx_mining_notify.subscribe(),
                             tx_status.listener_to_connection(),
@@ -446,8 +452,12 @@ impl IsServer<'static> for Downstream {
                 self.extranonce1[self.extranonce1.len() - crate::SELF_EXTRNONCE_LEN..].to_vec();
             let mut downstream_part: Vec<u8> = request.extra_nonce2.clone().into();
             tproxy_part.append(&mut downstream_part);
-
-            let to_send = (request.clone(), tproxy_part);
+            
+            let to_send = SubmitShareWithChannelId{
+                channel_id: self.connection_id,
+                share: request.clone(),
+                extranonce: tproxy_part
+            };
             self.tx_sv1_submit.try_send(to_send).unwrap();
         };
         true

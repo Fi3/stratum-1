@@ -18,6 +18,7 @@ use tokio::sync::broadcast;
 use v1::{client_to_server::Submit, server_to_client};
 
 use crate::{
+    downstream_sv1::SubmitShareWithChannelId,
     error::Error::{self, PoisonLock},
     status, ProxyResult,
 };
@@ -34,7 +35,7 @@ use tracing::{debug, error, info};
 #[derive(Debug)]
 pub struct Bridge {
     /// Receives a SV1 `mining.submit` message from the Downstream role.
-    rx_sv1_submit: Receiver<(Submit<'static>, Vec<u8>)>,
+    rx_sv1_submit: Receiver<SubmitShareWithChannelId>,
     /// Sends SV2 `SubmitSharesExtended` messages translated from SV1 `mining.submit` messages to
     /// the `Upstream`.
     tx_sv2_submit_shares_ext: Sender<SubmitSharesExtended<'static>>,
@@ -90,7 +91,7 @@ impl Bridge {
     #[allow(clippy::too_many_arguments)]
     /// Instantiate a new `Bridge`.
     pub fn new(
-        rx_sv1_submit: Receiver<(Submit<'static>, Vec<u8>)>,
+        rx_sv1_submit: Receiver<SubmitShareWithChannelId>,
         tx_sv2_submit_shares_ext: Sender<SubmitSharesExtended<'static>>,
         rx_sv2_set_new_prev_hash: Receiver<SetNewPrevHash<'static>>,
         rx_sv2_new_ext_mining_job: Receiver<NewExtendedMiningJob<'static>>,
@@ -337,6 +338,7 @@ impl Bridge {
                             let extranonce2_len = success.extranonce_size;
                             let target = success.target.to_vec();
                             return Some(OpenSv1Downstream {
+                                channel_id: success.channel_id,
                                 last_notify: self.last_notify.clone(),
                                 extranonce,
                                 target,
@@ -389,14 +391,14 @@ impl Bridge {
                     .map_err(|_| PoisonLock);
                 handle_result!(tx_status, res);
 
-                let (sv1_submit, extrnonce) =
+                let SubmitShareWithChannelId {channel_id, share: sv1_submit, extranonce} =
                     handle_result!(tx_status, rx_sv1_submit.clone().recv().await);
                 let channel_sequence_id = self_
                     .safe_lock(|s| s.channel_sequence_id.next())
                     .map_err(|_| PoisonLock);
                 let channel_sequence_id = handle_result!(tx_status, channel_sequence_id) - 1;
                 let sv2_submit = self_
-                    .safe_lock(|s| s.translate_submit(channel_sequence_id, sv1_submit, extrnonce))
+                    .safe_lock(|s| s.translate_submit(channel_id, channel_sequence_id, sv1_submit, extranonce))
                     .map_err(|_| PoisonLock);
                 let sv2_submit = handle_result!(tx_status, handle_result!(tx_status, sv2_submit));
                 let mut send_upstream = false;
@@ -454,7 +456,7 @@ impl Bridge {
                     // second tuple elements can not be None but must be Some(template_id)
                     Ok(Ok(OnNewShare::ShareMeetBitcoinTarget(..))) => unreachable!(),
                     Ok(Ok(OnNewShare::ShareMeetDownstreamTarget)) => {
-                        info!("SHARE MEETS DOWNSTREAM TARGET")
+                        info!("SHARE MEETS DOWNSTREAM TARGET");
                     }
                     Ok(Err(e)) => error!("Error: {:?}", e),
                     Err(e) => handle_result!(tx_status, Err(e)),
@@ -469,6 +471,7 @@ impl Bridge {
     /// Translates a SV1 `mining.submit` message to a SV2 `SubmitSharesExtended` message.
     fn translate_submit(
         &self,
+        channel_id: u32,
         channel_sequence_id: u32,
         sv1_submit: Submit,
         extranonce: Vec<u8>,
@@ -482,7 +485,7 @@ impl Bridge {
         };
 
         Ok(SubmitSharesExtended {
-            channel_id: 1,
+            channel_id: channel_id,
             sequence_number: channel_sequence_id,
             job_id: sv1_submit.job_id.parse::<u32>()?,
             nonce: sv1_submit.nonce.0,
@@ -668,6 +671,7 @@ impl Bridge {
     }
 }
 pub struct OpenSv1Downstream {
+    pub channel_id: u32,
     pub last_notify: Option<server_to_client::Notify<'static>>,
     pub extranonce: Vec<u8>,
     pub target: Vec<u8>,
@@ -784,7 +788,7 @@ mod test {
             let sv1_submit = test_utils::create_sv1_submit(0);
             let channel_seq_id = bridge.channel_sequence_id.next() - 1;
             let sv2_message = bridge
-                .translate_submit(channel_seq_id, sv1_submit, vec![0, 0, 0, 0, 0, 0, 0, 0])
+                .translate_submit(1, channel_seq_id, sv1_submit, vec![0, 0, 0, 0, 0, 0, 0, 0])
                 .unwrap();
             // assert sv2 message equals sv1 with version bits added
             assert_eq!(
