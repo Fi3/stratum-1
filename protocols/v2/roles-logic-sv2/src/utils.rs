@@ -111,8 +111,10 @@ pub fn merkle_root_from_path<T: AsRef<[u8]>>(
             return None;
         }
     };
-
-    let coinbase_id: [u8; 32] = match coinbase.txid().as_hash().to_vec().try_into() {
+    // wtxid() Computes SegWit-version of the transaction id (wtxid).
+    // For transaction with the witness data this hash includes witness,
+    // for pre-witness transaction it is equal to the normal value returned by txid() function
+    let coinbase_id: [u8; 32] = match coinbase.wtxid().to_vec().try_into() {
         Ok(id) => id,
         Err(_e) => return None,
     };
@@ -172,7 +174,7 @@ fn reduce_path<T: AsRef<[u8]>>(coinbase_id: [u8; 32], path: &[T]) -> [u8; 32] {
 /// [3] https://en.wikipedia.org/wiki/Negative_hypergeometric_distribution
 /// bdiff: 0x00000000ffff0000000000000000000000000000000000000000000000000000
 /// https://en.bitcoin.it/wiki/Difficulty#How_soon_might_I_expect_to_generate_a_block.3F
-pub fn hash_rate_to_target(h: f32, share_per_min: f32) -> U256<'static> {
+fn _hash_rate_to_target(h: f32, share_per_min: f32) -> [u8; 32] {
     // if we want 5 shares per minute, this means that s=60/5=12 seconds interval between shares
     let s: f32 = 60_f32 / share_per_min;
     let h_times_s = (h * s) as u128;
@@ -189,8 +191,18 @@ pub fn hash_rate_to_target(h: f32, share_per_min: f32) -> U256<'static> {
     let numerator = two_to_256_minus_one - h_times_s_minus_one;
     let denominator = h_times_s_plus_one;
     let target = numerator / denominator;
-    let target = target.to_be_bytes();
-    U256::<'static>::from(target)
+    target.to_be_bytes()
+}
+
+pub fn hash_rate_to_target_le(h: f32, share_per_min: f32) -> U256<'static> {
+    let mut target_be = _hash_rate_to_target(h, share_per_min);
+    target_be.reverse();
+    U256::<'static>::from(target_be)
+}
+
+pub fn hash_rate_to_target_be(h: f32, share_per_min: f32) -> U256<'static> {
+    let target_be = _hash_rate_to_target(h, share_per_min);
+    U256::<'static>::from(target_be)
 }
 
 pub fn from_u128_to_uint256(input: u128) -> bitcoin::util::uint::Uint256 {
@@ -510,9 +522,9 @@ pub fn get_target(
 
 #[cfg(test)]
 mod tests {
-    use super::hash_rate_to_target;
     #[cfg(feature = "serde")]
     use super::*;
+    use super::{hash_rate_to_target_be, hash_rate_to_target_le};
     #[cfg(feature = "serde")]
     use binary_sv2::{Seq0255, B064K, U256};
     use rand::Rng;
@@ -717,15 +729,51 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_rate_to_target() {
+    fn test_hash_rate_to_target_be() {
         let mut rng = rand::thread_rng();
         let mut successes = 0;
 
         let hr = 10.0;
         let hrs = hr * 60.0;
-        let mut target = hash_rate_to_target(hr, 1.0);
+        let mut target = hash_rate_to_target_be(hr, 1.0);
         let target =
             bitcoin::util::uint::Uint256::from_be_slice(&target.inner_as_mut()[..]).unwrap();
+
+        let mut i: i64 = 0;
+        let mut results = vec![];
+        let attempts = 1000;
+        while successes < attempts {
+            let a: u128 = rng.gen();
+            let b: u128 = rng.gen();
+            let a = a.to_be_bytes();
+            let b = b.to_be_bytes();
+            let concat = [&a[..], &b[..]].concat().to_vec();
+            i += 1;
+            if bitcoin::util::uint::Uint256::from_be_slice(&concat[..]).unwrap() <= target {
+                results.push(i);
+                i = 0;
+                successes += 1;
+            }
+        }
+
+        let mut average: f32 = 0.0;
+        for i in &results {
+            average = average + (*i as f32) / attempts as f32;
+        }
+        let delta = (hrs - average) as i64;
+        assert!(delta.abs() < 100);
+    }
+
+    #[test]
+    fn test_hash_rate_to_target_le() {
+        let mut rng = rand::thread_rng();
+        let mut successes = 0;
+
+        let hr = 10.0;
+        let hrs = hr * 60.0;
+        let mut target = hash_rate_to_target_le(hr, 1.0).to_vec();
+        target.reverse();
+        let target = bitcoin::util::uint::Uint256::from_be_slice(&target).unwrap();
 
         let mut i: i64 = 0;
         let mut results = vec![];
