@@ -107,6 +107,7 @@ impl JobsCreators {
             .collect();
         match template.len() {
             0 => {
+                println!("ON NEW PREV HASH: {:?}", "None");
                 self.reset_new_templates(None);
                 None
             }
@@ -114,6 +115,13 @@ impl JobsCreators {
                 self.reset_new_templates(Some(template[0].clone()));
 
                 // unwrap is safe cause we always poulate the map on_new_template
+                println!(
+                    "ON NEW PREV HASH: {:?}",
+                    *self
+                        .templte_to_job_id
+                        .get(&(prev_hash.template_id + 1))
+                        .unwrap()
+                );
                 Some(
                     *self
                         .templte_to_job_id

@@ -674,26 +674,29 @@ impl ChannelFactory {
                 upstream_target, ..
             } => upstream_target.clone(),
         };
-        let last_job_id = self
+        let _last_job_id = self
             .last_valid_job
             .as_ref()
             .ok_or(Error::ShareDoNotMatchAnyJob)?
             .0
             .job_id;
-        if m.get_job_id() != last_job_id {
-            println!("JOB ID: {:?}", last_job_id);
-            let error = SubmitSharesError {
-                channel_id: m.get_channel_id(),
-                sequence_number: m.get_sequence_number(),
-                // Infallible unwrap we already know the len of the error code (is a
-                // static string)
-                error_code: SubmitSharesError::stale_share_error_code()
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-            };
-            return Ok(OnNewShare::SendErrorDownstream(error));
-        }
+        // *** TODO: uncomment code below when job management gets fixed
+        // if m.get_job_id() < last_job_id {
+        //     println!("JOB ID: {:?}", last_job_id);
+        //     let error = SubmitSharesError {
+        //         channel_id: m.get_channel_id(),
+        //         sequence_number: m.get_sequence_number(),
+        //         // Infallible unwrap we already know the len of the error code (is a
+        //         // static string)
+        //         error_code: SubmitSharesError::stale_share_error_code()
+        //             .to_string()
+        //             .try_into()
+        //             .unwrap(),
+        //     };
+        //     return Ok(OnNewShare::SendErrorDownstream(error));
+        // } else if m.get_job_id() > last_job_id {
+        //     return Err(Error::JobNotUpdated)
+        // }
         let (downstream_target, extranonce) = self
             .get_channel_specific_mining_info(&m)
             .ok_or(Error::ShareDoNotMatchAnyChannel)?;
@@ -759,9 +762,6 @@ impl ChannelFactory {
         println!("COINBASE PREFIX: {:?}\n", &coinbase_tx_prefix);
         println!("COINBASE SUFFIX: {:?}\n", &coinbase_tx_suffix);
         println!("EXTRANONCE: {:?}\n", &extranonce);
-
-        
-        
 
         if hash <= bitcoin_target {
             let coinbase = [coinbase_tx_prefix, &extranonce[..], coinbase_tx_suffix]
@@ -933,7 +933,7 @@ impl PoolChannelFactory {
         &mut self,
         m: &SetNewPrevHashFromTp<'static>,
     ) -> Result<u32, Error> {
-        let job_id = self.job_creator.on_new_prev_hash(m).unwrap_or(0);
+        let job_id = self.job_creator.on_new_prev_hash(m).unwrap_or(1);
         let new_prev_hash = StagedPhash {
             job_id,
             prev_hash: m.prev_hash.clone(),
@@ -1148,7 +1148,7 @@ impl ProxyExtendedChannelFactory {
         m: &SetNewPrevHashFromTp<'static>,
     ) -> Result<Option<PartialSetCustomMiningJob>, Error> {
         if let Some(job_creator) = self.job_creator.as_mut() {
-            let job_id = job_creator.on_new_prev_hash(m).unwrap_or(0);
+            let job_id = job_creator.on_new_prev_hash(m).unwrap_or(1);
             let new_prev_hash = StagedPhash {
                 job_id,
                 prev_hash: m.prev_hash.clone(),

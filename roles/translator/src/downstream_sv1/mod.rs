@@ -1,4 +1,4 @@
-use v1::{utils::HexU32Be, client_to_server::Submit};
+use v1::{client_to_server::Submit, utils::HexU32Be};
 pub mod downstream;
 pub use downstream::Downstream;
 
@@ -12,8 +12,7 @@ const SUBSCRIBE_TIMEOUT_SECS: u64 = 10;
 pub struct SubmitShareWithChannelId {
     pub channel_id: u32,
     pub share: Submit<'static>,
-    pub extranonce: Vec<u8>
-
+    pub extranonce: Vec<u8>,
 }
 
 /// This is just a wrapper function to send a message on the Downstream task shutdown channel

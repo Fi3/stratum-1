@@ -391,14 +391,19 @@ impl Bridge {
                     .map_err(|_| PoisonLock);
                 handle_result!(tx_status, res);
 
-                let SubmitShareWithChannelId {channel_id, share: sv1_submit, extranonce} =
-                    handle_result!(tx_status, rx_sv1_submit.clone().recv().await);
+                let SubmitShareWithChannelId {
+                    channel_id,
+                    share: sv1_submit,
+                    extranonce,
+                } = handle_result!(tx_status, rx_sv1_submit.clone().recv().await);
                 let channel_sequence_id = self_
                     .safe_lock(|s| s.channel_sequence_id.next())
                     .map_err(|_| PoisonLock);
                 let channel_sequence_id = handle_result!(tx_status, channel_sequence_id) - 1;
                 let sv2_submit = self_
-                    .safe_lock(|s| s.translate_submit(channel_id, channel_sequence_id, sv1_submit, extranonce))
+                    .safe_lock(|s| {
+                        s.translate_submit(channel_id, channel_sequence_id, sv1_submit, extranonce)
+                    })
                     .map_err(|_| PoisonLock);
                 let sv2_submit = handle_result!(tx_status, handle_result!(tx_status, sv2_submit));
                 let mut send_upstream = false;
@@ -485,7 +490,7 @@ impl Bridge {
         };
 
         Ok(SubmitSharesExtended {
-            channel_id: channel_id,
+            channel_id,
             sequence_number: channel_sequence_id,
             job_id: sv1_submit.job_id.parse::<u32>()?,
             nonce: sv1_submit.nonce.0,

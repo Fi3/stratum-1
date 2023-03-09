@@ -111,6 +111,7 @@ pub fn merkle_root_from_path<T: AsRef<[u8]>>(
             return None;
         }
     };
+
     // wtxid() Computes SegWit-version of the transaction id (wtxid).
     // For transaction with the witness data this hash includes witness,
     // for pre-witness transaction it is equal to the normal value returned by txid() function

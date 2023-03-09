@@ -10,7 +10,7 @@ use error_handling::handle_result;
 use futures::FutureExt;
 use tokio::sync::broadcast;
 
-use super::{kill, SUBSCRIBE_TIMEOUT_SECS, SubmitShareWithChannelId};
+use super::{kill, SubmitShareWithChannelId, SUBSCRIBE_TIMEOUT_SECS};
 
 use roles_logic_sv2::{
     bitcoin::util::uint::Uint256,
@@ -263,8 +263,8 @@ impl Downstream {
 
     /// Converts target received by the `SetTarget` SV2 message from the Upstream role into the
     /// difficulty for the Downstream role sent via the SV1 `mining.set_difficulty` message.
-    fn difficulty_from_target(target: Vec<u8>) -> ProxyResult<'static, f64> {
-        let mut target = target;
+    fn difficulty_from_target(mut target: Vec<u8>) -> ProxyResult<'static, f64> {
+        // reverse since target is getting sent LE and this function calcs diffs based on BE
         target.reverse();
         let target = target.as_slice();
 
@@ -452,11 +452,11 @@ impl IsServer<'static> for Downstream {
                 self.extranonce1[self.extranonce1.len() - crate::SELF_EXTRNONCE_LEN..].to_vec();
             let mut downstream_part: Vec<u8> = request.extra_nonce2.clone().into();
             tproxy_part.append(&mut downstream_part);
-            
-            let to_send = SubmitShareWithChannelId{
+
+            let to_send = SubmitShareWithChannelId {
                 channel_id: self.connection_id,
                 share: request.clone(),
-                extranonce: tproxy_part
+                extranonce: tproxy_part,
             };
             self.tx_sv1_submit.try_send(to_send).unwrap();
         };
