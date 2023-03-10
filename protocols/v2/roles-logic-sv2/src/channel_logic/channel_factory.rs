@@ -752,17 +752,6 @@ impl ChannelFactory {
         println!("\nSHARE HASH: {:?}", &hash);
         let hash: Target = hash.into();
 
-        // let upstream_target_u256: binary_sv2::U256 = upstream_target.clone().into();
-        // println!("UPSTREAM TARGET: {:?}", &upstream_target_u256.to_vec());
-
-        // let downstream_target_u256: binary_sv2::U256 = downstream_target.clone().into();
-        // println!("DOWNSTREAM TARGET: {:?}", &downstream_target_u256.to_vec());
-        // println!("HEADER: {:?}\n", &header);
-        // println!("SHARE: {:?}\n", &m);
-        // println!("COINBASE PREFIX: {:?}\n", &coinbase_tx_prefix);
-        // println!("COINBASE SUFFIX: {:?}\n", &coinbase_tx_suffix);
-        // println!("EXTRANONCE: {:?}\n", &extranonce);
-
         if hash <= bitcoin_target {
             let coinbase = [coinbase_tx_prefix, &extranonce[..], coinbase_tx_suffix]
                 .concat()
@@ -933,6 +922,7 @@ impl PoolChannelFactory {
         &mut self,
         m: &SetNewPrevHashFromTp<'static>,
     ) -> Result<u32, Error> {
+        // since we have staged phash 0 is no longer reserved and 1 is the default
         let job_id = self.job_creator.on_new_prev_hash(m).unwrap_or(1);
         let new_prev_hash = StagedPhash {
             job_id,
@@ -1148,6 +1138,7 @@ impl ProxyExtendedChannelFactory {
         m: &SetNewPrevHashFromTp<'static>,
     ) -> Result<Option<PartialSetCustomMiningJob>, Error> {
         if let Some(job_creator) = self.job_creator.as_mut() {
+            // since we have staged phash 0 is no longer reserved and 1 is the default
             let job_id = job_creator.on_new_prev_hash(m).unwrap_or(1);
             let new_prev_hash = StagedPhash {
                 job_id,

@@ -107,7 +107,6 @@ impl JobsCreators {
             .collect();
         match template.len() {
             0 => {
-                println!("ON NEW PREV HASH: {:?}", "None");
                 self.reset_new_templates(None);
                 None
             }
@@ -115,13 +114,6 @@ impl JobsCreators {
                 self.reset_new_templates(Some(template[0].clone()));
 
                 // unwrap is safe cause we always poulate the map on_new_template
-                println!(
-                    "ON NEW PREV HASH: {:?}",
-                    *self
-                        .templte_to_job_id
-                        .get(&(prev_hash.template_id + 1))
-                        .unwrap()
-                );
                 Some(
                     *self
                         .templte_to_job_id
@@ -163,10 +155,6 @@ fn new_extended_job(
         extranonce_len,
     );
 
-    println!("COINBASE: {:?}", coinbase.serialize());
-
-    // let stripped_tx = StrippedCoinbaseTx::from_coinbase(coinbase);
-
     let new_extended_mining_job: NewExtendedMiningJob<'static> = NewExtendedMiningJob {
         channel_id: 0,
         job_id,
@@ -196,9 +184,6 @@ fn coinbase_tx_prefix(
         0 => 0,
         _ => 2,
     };
-    // remove segwit bytes
-    // encoded.splice(4..segwit_bytes, vec![]);
-    // remove marker and flag 4 bytes total after the tx version
     let index = 4    // tx version
         + segwit_bytes
         + 1  // number of inputs TODO can be also 3
@@ -222,7 +207,6 @@ fn coinbase_tx_suffix(
         0 => 0,
         _ => 2,
     };
-    println!("COINBASE SERIALIZED: {:?}", &encoded);
     let r = encoded[4    // tx version
         + segwit_bytes
         + 1  // number of inputs TODO can be also 3
@@ -376,8 +360,8 @@ impl StrippedCoinbaseTx {
     #[allow(clippy::wrong_self_convention)]
     fn into_coinbase_tx_prefix(&self) -> Result<B064K<'static>, errors::Error> {
         let mut inputs = self.inputs.clone();
-        let last_input = inputs.last_mut().unwrap();
-        let new_last_input_len = 
+        let last_input = inputs.last_mut().ok_or(Error::BadPayloadSize)?;
+        let new_last_input_len =
         32 // outpoint
         + 4 // vout
         + 1 // script length byte -> TODO can be also 3 (based on TODO in `coinbase_tx_prefix()`)
