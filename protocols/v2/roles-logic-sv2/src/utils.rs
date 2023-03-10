@@ -112,10 +112,7 @@ pub fn merkle_root_from_path<T: AsRef<[u8]>>(
         }
     };
 
-    // wtxid() Computes SegWit-version of the transaction id (wtxid).
-    // For transaction with the witness data this hash includes witness,
-    // for pre-witness transaction it is equal to the normal value returned by txid() function
-    let coinbase_id: [u8; 32] = match coinbase.wtxid().to_vec().try_into() {
+    let coinbase_id: [u8; 32] = match coinbase.txid().to_vec().try_into() {
         Ok(id) => id,
         Err(_e) => return None,
     };

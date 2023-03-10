@@ -541,7 +541,6 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 255, 127,
             0, 0, 0, 0, 0,
         ];
-        target.reverse();
         let actual = Downstream::difficulty_from_target(target).unwrap();
         let expect = 512.0;
         assert_eq!(actual, expect);
