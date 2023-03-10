@@ -292,7 +292,10 @@ pub fn extended_job_to_non_segwit(
     full_extranonce_len: usize,
 ) -> Result<NewExtendedMiningJob<'static>, Error> {
     let mut encoded = job.coinbase_tx_prefix.to_vec();
-    encoded.extend_from_slice(&[0_u8; 32]);
+    // just add empty extranonce space so it can be deserialized. The real extranonce
+    // should be inserted based on the miner's shares
+    let extranonce = vec![0_u8; full_extranonce_len];
+    encoded.extend_from_slice(&extranonce[..]);
     encoded.extend_from_slice(job.coinbase_tx_suffix.inner_as_ref());
     let coinbase = Transaction::deserialize(&encoded).map_err(|_| Error::InvalidCoinbase)?;
     let stripped_tx = StrippedCoinbaseTx::from_coinbase(coinbase, full_extranonce_len)?;
