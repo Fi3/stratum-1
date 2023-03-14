@@ -2,8 +2,7 @@ use async_channel::{Receiver, Sender};
 use async_std::task;
 use roles_logic_sv2::{
     channel_logic::channel_factory::{ExtendedChannelKind, ProxyExtendedChannelFactory, Share},
-    job_creator::JobsCreators,
-    job_creator::extended_job_to_non_segwit,
+    job_creator::{extended_job_to_non_segwit, JobsCreators},
     mining_sv2::{
         ExtendedExtranonce, NewExtendedMiningJob, SetCustomMiningJob, SetNewPrevHash,
         SubmitSharesExtended, Target,
@@ -75,6 +74,7 @@ pub struct Bridge {
     request_ids: Id,
     solution_sender: Option<Sender<SubmitSolution<'static>>>,
     channel_extranonce_len: usize,
+    last_job_id: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -146,6 +146,7 @@ impl Bridge {
             pool_output_is_set: false,
             solution_sender,
             channel_extranonce_len,
+            last_job_id: 0,
         }));
         match upstream_kind {
             UpstreamKind::Standard => (),
@@ -481,7 +482,8 @@ impl Bridge {
     fn translate_submit(
         &self,
         channel_id: u32,
-        channel_sequence_id: u32,
+        // TODO remove it sequence id is another thing
+        _channel_sequence_id: u32,
         sv1_submit: Submit,
         extranonce: Vec<u8>,
     ) -> ProxyResult<'static, SubmitSharesExtended<'static>> {
@@ -495,7 +497,8 @@ impl Bridge {
 
         Ok(SubmitSharesExtended {
             channel_id,
-            sequence_number: channel_sequence_id,
+            // I put 0 below cause sequence_number is not what should be TODO
+            sequence_number: 0,
             job_id: sv1_submit.job_id.parse::<u32>()?,
             nonce: sv1_submit.nonce.0,
             ntime: sv1_submit.time.0,
@@ -509,6 +512,11 @@ impl Bridge {
         sv2_set_new_prev_hash: SetNewPrevHash<'static>,
         tx_sv1_notify: broadcast::Sender<server_to_client::Notify<'static>>,
     ) -> Result<(), Error<'static>> {
+        while !crate::upstream_sv2::upstream::IS_NEW_JOB_HANDLED
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            tokio::task::yield_now().await;
+        }
         self_
             .safe_lock(|s| s.last_p_hash = Some(sv2_set_new_prev_hash.clone()))
             .map_err(|_| PoisonLock)?;
@@ -531,16 +539,19 @@ impl Bridge {
 
         while let Some(job) = future_jobs.pop() {
             if job.job_id == sv2_set_new_prev_hash.job_id {
+                let j_id = job.job_id;
                 // Create the mining.notify to be sent to the Downstream.
                 let notify = crate::proxy::next_mining_notify::create_notify(
                     sv2_set_new_prev_hash.clone(),
                     job,
                 );
+
                 // Get the sender to send the mining.notify to the Downstream
                 tx_sv1_notify.send(notify.clone())?;
                 self_
                     .safe_lock(|s| {
                         s.last_notify = Some(notify);
+                        s.last_job_id = j_id;
                     })
                     .map_err(|_| PoisonLock)?;
                 break;
@@ -594,6 +605,14 @@ impl Bridge {
         sv2_new_extended_mining_job: &NewExtendedMiningJob<'static>,
         tx_sv1_notify: broadcast::Sender<server_to_client::Notify<'static>>,
     ) -> Result<(), Error<'static>> {
+        let extended_extranonce_len = self_
+            .safe_lock(|s| s.channel_extranonce_len)
+            .map_err(|_| PoisonLock)?;
+        // convert to non segwit jobs so we dont have to depend if miner's support segwit or not
+        let sv2_new_extended_mining_job = extended_job_to_non_segwit(
+            sv2_new_extended_mining_job.clone(),
+            extended_extranonce_len,
+        )?;
         self_
             .safe_lock(|s| {
                 s.channel_factory
@@ -620,6 +639,7 @@ impl Bridge {
                 RolesLogicError::JobIsNotFutureButPrevHashNotPresent,
             ))?;
 
+            let j_id = sv2_new_extended_mining_job.job_id;
             // Create the mining.notify to be sent to the Downstream.
             let notify = crate::proxy::next_mining_notify::create_notify(
                 last_p_hash,
@@ -630,6 +650,7 @@ impl Bridge {
             self_
                 .safe_lock(|s| {
                     s.last_notify = Some(notify);
+                    s.last_job_id = j_id;
                 })
                 .map_err(|_| PoisonLock)?;
             Ok(())
@@ -645,7 +666,7 @@ impl Bridge {
     /// `SetNewPrevHash` `job_id`, an error has occurred on the Upstream pool role and the
     /// connection will close.
     fn handle_new_extended_mining_job(self_: Arc<Mutex<Self>>) {
-        let (tx_sv1_notify, rx_sv2_new_ext_mining_job, tx_status, extended_extranonce_len) = self_
+        let (tx_sv1_notify, rx_sv2_new_ext_mining_job, tx_status, _extended_extranonce_len) = self_
             .safe_lock(|s| {
                 (
                     s.tx_sv1_notify.clone(),
@@ -676,6 +697,8 @@ impl Bridge {
                     )
                     .await
                 );
+                crate::upstream_sv2::upstream::IS_NEW_JOB_HANDLED
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
             }
         });
     }
