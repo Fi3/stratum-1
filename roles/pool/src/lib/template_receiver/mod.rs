@@ -5,7 +5,7 @@ use crate::{
 use async_channel::{Receiver, Sender};
 use codec_sv2::{Frame,HandshakeRole,Initiator};
 use error_handling::handle_result;
-use network_helpers::plain_connection_tokio::PlainConnection;
+use network_helpers::noise_connection_tokio::Connection;
 use roles_logic_sv2::{
     handlers::template_distribution::ParseServerTemplateDistributionMessages,
     parsers::{PoolMessages, TemplateDistribution},
@@ -48,8 +48,8 @@ impl TemplateRx {
 
         let pub_key: Secp256k1PublicKey = authority_public_key;
         let initiator = Initiator::from_raw_k(pub_key.into_bytes())?;
-        let (mut receiver, mut sender) =
-            PlainConnection::new(stream).await;
+        let (mut receiver, mut sender, _,_) =
+            Connection::new(stream,HandshakeRole::Initiator(initiator)).await.unwrap();
 
         SetupConnectionHandler::setup(&mut receiver, &mut sender, address).await?;
 
