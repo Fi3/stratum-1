@@ -345,9 +345,11 @@ impl JobDeclarator {
         self_mutex: &Arc<Mutex<Self>>,
         solution: SubmitSharesExtended<'static>,
     ) {
+        let mut last_set_new_prev_hash: Option<SetNewPrevHash> = None;
+        let job_declarator = self_mutex.safe_lock(|s| last_set_new_prev_hash = s.last_set_new_prev_hash ).unwrap();
         let solution = SubmitSolutionJd {
             extranonce: solution.extranonce,
-            prev_hash: todo!(),
+            prev_hash: last_set_new_prev_hash.unwrap().prev_hash,
         };
         let frame: StdFrame =
             PoolMessages::JobDeclaration(JobDeclaration::SubmitSolution(solution))
