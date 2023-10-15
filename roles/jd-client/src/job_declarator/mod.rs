@@ -346,10 +346,26 @@ impl JobDeclarator {
         solution: SubmitSharesExtended<'static>,
     ) {
         let mut last_set_new_prev_hash: Option<SetNewPrevHash> = None;
-        let job_declarator = self_mutex.safe_lock(|s| last_set_new_prev_hash = s.last_set_new_prev_hash ).unwrap();
+        let mut last_declare_mining_job_sent = Vec::new();
+        let job_declarator = self_mutex.safe_lock(|s| 
+            last_set_new_prev_hash = s.last_set_new_prev_hash;
+            // last declare mining job is of type Vec<(Sented DeclareMiningJob, is future, template id, merkle path) 
+            last_declare_mining_job_sent = s.last_declare_mining_job_sent;
+            ).unwrap();
+        let last_declared_mining_job_sent = self_mutex.safe_lock(|s| last_set_new_prev_hash = s.last_set_new_prev_hash ).unwrap();
+        let last_set_new_prev_hash: SetNewPrevHash = last_set_new_prev_hash.expect("prevhash not known");
+        // I don't know how it is constructed the solution, but I suppose has to contain the
+        // following fields
         let solution = SubmitSolutionJd {
             extranonce: solution.extranonce,
-            prev_hash: last_set_new_prev_hash.unwrap().prev_hash,
+            // we want the prevhash but also the timestamp for the block header, so forward the
+            // entire SetnewprevHash
+            prev_hash: last_set_new_prev_hash.prev_hash,
+            time: last_set_new_prev_hash.header_timestamp,
+            target: last_set_new_prev_hash.target,
+            nonce: solution.nonce,
+            // the merkle root is the last element of the tuple
+            merkle_root: last_declare_mining_job_sent.last().3,
         };
         let frame: StdFrame =
             PoolMessages::JobDeclaration(JobDeclaration::SubmitSolution(solution))

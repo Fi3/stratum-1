@@ -165,12 +165,16 @@ impl ParseClientJobDeclarationMessages for JobDeclaratorDownstream {
         let (last_declare,tx_list,_) = self.declared_mining_job.as_ref().expect("Received solution but no job available");
         let header = stratum_common::bitcoin::blockdata::block::BlockHeader {
             version: last_declare.version as i32,
-            prev_blockhash: todo!(),
+            prev_blockhash: message.prev_hash,
             merkle_root: todo!(),
-            time: todo!(),
-            bits: todo!(),
-            nonce: todo!(),
+            // submit solution contains SetNewPrevHash message
+            time: message.prev_hash.header_timestamp,
+            bits: stratum_common::bitcoin::pow::CompactTarget::consensus_decode(message.target),
+            nonce: message.nonce,
         };
+        //serialize the header and the transactions in hex and send them to a rpc node
+        // the extranonce is in message.extranonce, the other fields of the coinbase are in
+        // last_declare
 
         Ok(SendTo::None(None))
     }
