@@ -25,12 +25,20 @@ pub struct MiniRpcClient {
     //url: &'a str,
     url: String,
     auth: Auth,
+    recv_submit: AsyncReceiver<Message>,
 }
 
 impl MiniRpcClient {
-    pub fn new(url: String, auth: Auth) -> MiniRpcClient {
+    pub fn new(url: String, auth: Auth) -> Arc<Mutex<MiniRpcClient>> {
         let client: Client<_, Full<Bytes>> = Client::builder(TokioExecutor::new()).build_http();
         MiniRpcClient { client, url, auth }
+    }
+
+    pub on_submit(self_: Arc<Mutex<Self>>) {
+        let recv = self_.safe_lock(|x| x.recv_submit = receiver);
+        while let Ok(message) = recv.recv().await {
+            
+        }
     }
 
     pub async fn get_raw_transaction(

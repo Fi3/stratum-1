@@ -102,6 +102,8 @@ impl JobDeclaratorDownstream {
                                 Self::send(self_mutex.clone(), message).await.unwrap();
                             }
                             Ok(SendTo::None(_)) => (),
+                            Ok(SendTo::RelayNewMessage(JobDeclaration::SubmitSolution(m))) => {
+                            }
                             Err(e) => {
                                 error!("{:?}", e);
                                 handle_result!(
