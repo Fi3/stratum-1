@@ -1,5 +1,6 @@
 pub mod hex_iterator;
 pub mod rpc_client;
+pub mod mini_rpc_client;
 use bitcoin::blockdata::transaction::Transaction;
 use hashbrown::HashMap;
 use roles_logic_sv2::utils::Mutex;
@@ -26,21 +27,23 @@ pub struct TransacrtionWithHash {
 #[derive(Clone, Debug)]
 pub struct JDsMempool {
     pub mempool: Vec<TransacrtionWithHash>,
-    auth: Auth,
+    auth: mini_rpc_client::Auth,
     url: String,
 }
 
 impl JDsMempool {
-    pub fn get_client(&self) -> Option<RpcClient> {
+    pub fn get_client(&self) -> Option<mini_rpc_client::MiniRpcClient> {
         let url = self.url.as_str();
         if url.contains("http") {
-            Some(RpcClient::new(url, self.auth.clone()).unwrap())
+            let client = mini_rpc_client::MiniRpcClient::new(url.to_string(), self.auth.clone());
+            //Some(RpcClient::new(url, self.auth.clone()).unwrap())
+            Some(client)
         } else {
             None
         }
     }
     pub fn new(url: String, username: String, password: String) -> Self {
-        let auth = Auth::UserPass(username, password);
+        let auth = mini_rpc_client::Auth{ username, password};
         let empty_mempool: Vec<TransacrtionWithHash> = Vec::new();
         JDsMempool {
             mempool: empty_mempool,
@@ -57,9 +60,9 @@ impl JDsMempool {
             .ok_or(JdsMempoolError::NoClient)?;
         let new_mempool: Result<Vec<TransacrtionWithHash>, JdsMempoolError> =
             tokio::task::spawn(async move {
-                let mempool: Vec<String> = client.get_raw_mempool_verbose().unwrap();
+                let mempool: Vec<String> = client.get_raw_mempool_verbose().await.unwrap();
                 for id in &mempool {
-                    let tx: Result<Transaction, _> = client.get_raw_transaction(id, None);
+                    let tx: Result<Transaction, _> = client.get_raw_transaction(id, None).await;
                     if let Ok(tx) = tx {
                         let id = tx.txid();
                         mempool_ordered.push(TransacrtionWithHash { id, tx });

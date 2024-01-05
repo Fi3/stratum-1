@@ -1,4 +1,6 @@
 use std::{convert::TryInto, io::Cursor};
+use std::sync::Arc;
+
 use stratum_common::bitcoin::{hashes::Hash, psbt::serialize::Deserialize, Block, Transaction};
 
 use binary_sv2::ShortTxId;
@@ -10,7 +12,7 @@ use roles_logic_sv2::{
         ProvideMissingTransactions, ProvideMissingTransactionsSuccess, SubmitSolutionJd,
     },
     parsers::JobDeclaration,
-    utils::{merkle_root_from_path, u256_to_block_hash},
+    utils::{merkle_root_from_path, u256_to_block_hash, Mutex},
 };
 pub type SendTo = SendTo_<JobDeclaration<'static>, ()>;
 use roles_logic_sv2::{errors::Error, parsers::PoolMessages as AllMessages};
@@ -180,9 +182,9 @@ impl ParseClientJobDeclarationMessages for JobDeclaratorDownstream {
         }
     }
 
-    fn handle_submit_solution(&mut self, message: SubmitSolutionJd) -> Result<SendTo, Error> {
+    async fn handle_submit_solution(self_: Arc<Mutex<Self>>, message: SubmitSolutionJd<'_>) -> Result<SendTo, Error> {
         //TODO: implement logic for success or error
-        let (last_declare, mut tx_list, _) = match self.declared_mining_job.take() {
+        let (last_declare, mut tx_list, _) = match self_.safe_lock(|x| x.declared_mining_job.take()).unwrap() {
             Some((last_declare, tx_list, _x)) => (last_declare, tx_list, _x),
             None => {
                 warn!("Received solution but no job available");
@@ -228,13 +230,18 @@ impl ParseClientJobDeclarationMessages for JobDeclaratorDownstream {
         let hexdata = hex::encode(serialized_block);
 
         // TODO This line blok everything!!
-        self.mempool
+        let client = self_.safe_lock(|y|
+            y
+            .mempool
             .safe_lock(|x| {
                 if let Some(client) = x.get_client() {
-                    client.submit_block(hexdata).unwrap();
+                    client//.submit_block(hexdata).await;
+                } else {
+                    todo!()
                 }
             })
-            .unwrap();
+            .unwrap()).unwrap();
+        client.submit_block(hexdata).await;
 
         Ok(SendTo::None(None))
     }
