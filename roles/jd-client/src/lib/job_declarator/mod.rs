@@ -85,6 +85,7 @@ impl JobDeclarator {
     ) -> Result<Arc<Mutex<Self>>, Error<'static>> {
         let stream = tokio::net::TcpStream::connect(address).await?;
         let initiator = Initiator::from_raw_k(authority_public_key)?;
+        let initiator = Initiator::new(None);
         let (mut receiver, mut sender, _, _) =
             Connection::new(stream, HandshakeRole::Initiator(initiator))
                 .await

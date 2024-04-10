@@ -24,7 +24,8 @@ use std::{
 };
 use tokio::task::AbortHandle;
 
-use tracing::{error, info};
+use tracing::{error, info, warn, debug};
+use std::net::ToSocketAddrs;
 
 /// Process CLI args, if any.
 #[allow(clippy::result_large_err)]
@@ -96,6 +97,11 @@ fn process_cli_args<'a>() -> ProxyResult<'a, ProxyConfig> {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+    dotenv::dotenv().ok();
+    if std::env::var("ADDRESS").is_err() {
+        error!("ADDRESS env variable not set");
+        std::process::exit(1);
+    }
 
     let mut upstream_index = 0;
     let mut interrupt_signal_future = Box::pin(tokio::signal::ctrl_c().fuse());
@@ -107,7 +113,11 @@ async fn main() {
 
     let proxy_config = match process_cli_args() {
         Ok(p) => p,
-        Err(_) => return,
+        Err(e) => {
+            warn!("No valid config file using default config");
+            debug!("Error: {}", e);
+            ProxyConfig::default()
+        }
     };
 
     loop {
@@ -206,7 +216,7 @@ async fn initialize_jd_as_solo_miner(
     timeout: Duration,
 ) {
     let proxy_config = process_cli_args().unwrap();
-    let miner_tx_out = lib::proxy_config::get_coinbase_output(&proxy_config).unwrap();
+    let miner_tx_out = lib::proxy_config::get_coinbase_output(std::env::var("ADDRESS").unwrap().as_str()).unwrap();
 
     // When Downstream receive a share that meets bitcoin target it transformit in a
     // SubmitSolution and send it to the TemplateReceiver
@@ -261,25 +271,18 @@ async fn initialize_jd(
     upstream_config: lib::proxy_config::Upstream,
     timeout: Duration,
 ) {
-    let proxy_config = process_cli_args().unwrap();
+    let proxy_config = match process_cli_args() {
+        Ok(p) => p,
+        Err(_) => {
+            warn!("No valid config file using default config");
+            ProxyConfig::default()
+        }
+    };
     let test_only_do_not_send_solution_to_tp = proxy_config
         .test_only_do_not_send_solution_to_tp
         .unwrap_or(false);
 
-    // Format `Upstream` connection address
-    let mut parts = upstream_config.pool_address.split(':');
-    let address = parts
-        .next()
-        .unwrap_or_else(|| panic!("Invalid pool address {}", upstream_config.pool_address));
-    let port = parts
-        .next()
-        .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or_else(|| panic!("Invalid pool address {}", upstream_config.pool_address));
-    let upstream_addr = SocketAddr::new(
-        IpAddr::from_str(address)
-            .unwrap_or_else(|_| panic!("Invalid pool address {}", upstream_config.pool_address)),
-        port,
-    );
+    let upstream_addr = upstream_config.jd_address.clone().to_socket_addrs().unwrap().next().unwrap();
 
     // When Downstream receive a share that meets bitcoin target it transformit in a
     // SubmitSolution and send it to the TemplateReceiver
@@ -335,11 +338,8 @@ async fn initialize_jd(
     let ip_tp = parts.next().unwrap().to_string();
     let port_tp = parts.next().unwrap().parse::<u16>().unwrap();
 
-    let mut parts = upstream_config.jd_address.split(':');
-    let ip_jd = parts.next().unwrap().to_string();
-    let port_jd = parts.next().unwrap().parse::<u16>().unwrap();
     let jd = match JobDeclarator::new(
-        SocketAddr::new(IpAddr::from_str(ip_jd.as_str()).unwrap(), port_jd),
+        upstream_config.jd_address.clone().to_socket_addrs().unwrap().next().unwrap(),
         upstream_config.authority_pubkey.into_bytes(),
         proxy_config.clone(),
         upstream.clone(),

@@ -20,7 +20,7 @@ use tokio::{sync::broadcast, task};
 use v1::server_to_client;
 
 use crate::status::{State, Status};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info,warn};
 /// Process CLI args, if any.
 #[allow(clippy::result_large_err)]
 fn process_cli_args<'a>() -> ProxyResult<'a, ProxyConfig> {
@@ -41,7 +41,11 @@ async fn main() {
 
     let proxy_config = match process_cli_args() {
         Ok(p) => p,
-        Err(_) => return,
+        Err(e) => {
+            warn!("No valid config file using default config");
+            debug!("Error: {}", e);
+            ProxyConfig::default()
+        }
     };
     info!("PC: {:?}", &proxy_config);
 

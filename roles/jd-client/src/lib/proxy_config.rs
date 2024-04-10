@@ -3,6 +3,8 @@ use roles_logic_sv2::{errors::Error, utils::CoinbaseOutput as CoinbaseOutput_};
 use serde::Deserialize;
 use std::time::Duration;
 use stratum_common::bitcoin::TxOut;
+use stratum_common::bitcoin::Address;
+use std::str::FromStr;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct CoinbaseOutput {
@@ -41,8 +43,37 @@ pub struct ProxyConfig {
     pub upstreams: Vec<Upstream>,
     #[serde(deserialize_with = "duration_from_toml")]
     pub timeout: Duration,
-    pub coinbase_outputs: Vec<CoinbaseOutput>,
     pub test_only_do_not_send_solution_to_tp: Option<bool>,
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        let downstream_address = std::env::var("LISTEN_ON").unwrap_or_else(|_| "127.0.0.1".to_string());
+        Self {
+            downstream_address,
+            downstream_port: 34265,
+            max_supported_version: 2,
+            min_supported_version: 2,
+            min_extranonce2_size: 8,
+            withhold: false,
+            authority_public_key: "9auqWEzQDVyd2oe1JVGFLMLHZtCo2FFqZwtKA5gd9xbuEu7PH72".to_string().try_into().unwrap(),
+            authority_secret_key: "mkDLTBBRxdBv998612qipDYoTK3YUrqLe8uWw7gu3iXbSrn2n".to_string().try_into().unwrap(),
+            cert_validity_sec: 3600,
+            tp_address: "127.0.0.1:8442".to_string(),
+            tp_authority_public_key: None,
+            retry: 10,
+            upstreams: vec![
+                Upstream {
+                    authority_pubkey: "9bQHWXsQ2J9TRFTaxRh3KjoxdyLRfWVEy25YHtKF8y8gotLoCZZ".to_string().try_into().unwrap(), 
+                    pool_address: "mining.dmnd.work:2000".to_string(), 
+                    jd_address: "mining.dmnd.work:2000".to_string(), 
+                    pool_signature: "DEMANDsv2".to_string(),
+                },
+            ],
+            timeout: Duration::from_secs(1),
+            test_only_do_not_send_solution_to_tp: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -82,18 +113,11 @@ where
     }
 }
 
-pub fn get_coinbase_output(config: &ProxyConfig) -> Result<Vec<TxOut>, Error> {
-    let mut result = Vec::new();
-    for coinbase_output_pool in &config.coinbase_outputs {
-        let coinbase_output: CoinbaseOutput_ = coinbase_output_pool.try_into()?;
-        let output_script = coinbase_output.try_into()?;
-        result.push(TxOut {
-            value: 0,
-            script_pubkey: output_script,
-        });
-    }
-    match result.is_empty() {
-        true => Err(Error::EmptyCoinbaseOutputs),
-        _ => Ok(result),
-    }
+pub fn get_coinbase_output(address: &str) -> Result<Vec<TxOut>, Error> {
+    let address = Address::from_str(address).unwrap_or_else(|_| panic!("Invalid address: {}", address));
+    let script = address.script_pubkey();
+    Ok(vec![TxOut {
+        value: 0,
+        script_pubkey: script,
+    }])
 }

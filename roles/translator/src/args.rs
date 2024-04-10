@@ -23,12 +23,6 @@ impl Args {
 
     pub fn from_args() -> Result<Self, String> {
         let cli_args = std::env::args();
-
-        if cli_args.len() == 1 {
-            println!("Using default config path: {}", Self::DEFAULT_CONFIG_PATH);
-            println!("{}\n", Self::HELP_MSG);
-        }
-
         let config_path = cli_args
             .scan(ArgsState::Next, |state, item| {
                 match std::mem::replace(state, ArgsState::Done) {

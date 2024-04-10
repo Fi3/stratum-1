@@ -171,6 +171,7 @@ impl Upstream {
 
         let pub_key: Secp256k1PublicKey = authority_public_key;
         let initiator = Initiator::from_raw_k(pub_key.into_bytes())?;
+        let initiator = Initiator::new(None);
 
         info!(
             "PROXY SERVER - ACCEPTING FROM UPSTREAM: {}",
@@ -409,11 +410,14 @@ impl Upstream {
         let vendor = String::new().try_into()?;
         let hardware_version = String::new().try_into()?;
         let firmware = String::new().try_into()?;
-        let device_id = String::new().try_into()?;
         let flags = match is_work_selection_enabled {
             false => 0b0000_0000_0000_0000_0000_0000_0000_0100,
             true => 0b0000_0000_0000_0000_0000_0000_0000_0110,
         };
+        let address = std::env::var("ADDRESS").unwrap();
+        let device_id = format!("device_id::SOLO::{}", address)
+            .to_string()
+            .try_into()?;
         Ok(SetupConnection {
             protocol: Protocol::MiningProtocol,
             min_version,

@@ -41,3 +41,31 @@ pub struct UpstreamDifficultyConfig {
     #[serde(default = "bool::default")]
     pub should_aggregate: bool,
 }
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        let downstream_address = std::env::var("LISTEN_ON").unwrap_or_else(|_| "0.0.0.0".to_string());
+        Self {
+            upstream_address: "127.0.0.1".to_string(),
+            upstream_port: 34265,
+            upstream_authority_pubkey: "9auqWEzQDVyd2oe1JVGFLMLHZtCo2FFqZwtKA5gd9xbuEu7PH72".to_string().try_into().unwrap(),
+            downstream_address,
+            downstream_port: 34255,
+            max_supported_version: 2,
+            min_supported_version: 2,
+            min_extranonce2_size: 8,
+            downstream_difficulty_config: DownstreamDifficultyConfig {
+                min_individual_miner_hashrate: 10_000_000_000_000.0,
+                shares_per_minute: 6.0,
+                submits_since_last_update: u32::default(),
+                timestamp_of_last_update: u64::default(),
+            },
+            upstream_difficulty_config: UpstreamDifficultyConfig {
+                channel_diff_update_interval: 60,
+                channel_nominal_hashrate: 10_000_000_000_000.0,
+                timestamp_of_last_update: u64::default(),
+                should_aggregate: true,
+            },
+        }
+    }
+}
