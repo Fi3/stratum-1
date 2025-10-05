@@ -165,6 +165,7 @@ pub const MESSAGE_TYPE_SET_CUSTOM_MINING_JOB: u8 = 0x22;
 pub const MESSAGE_TYPE_SET_CUSTOM_MINING_JOB_SUCCESS: u8 = 0x23;
 pub const MESSAGE_TYPE_SET_CUSTOM_MINING_JOB_ERROR: u8 = 0x24;
 
+
 // Refactoring: we need to move this to 0x04 and shift SETGROUPCHANNEL to 0x25
 // (we are not specs compliant now)
 pub const MESSAGE_TYPE_RECONNECT: u8 = 0x25;
@@ -189,6 +190,12 @@ pub const MESSAGE_TYPE_REQUEST_TRANSACTION_DATA_SUCCESS: u8 = 0x74;
 pub const MESSAGE_TYPE_REQUEST_TRANSACTION_DATA_ERROR: u8 = 0x75;
 pub const MESSAGE_TYPE_SUBMIT_SOLUTION: u8 = 0x76;
 
+pub const MESSAGE_TYPE_DECLARE_TXS: u8 = 0x77;
+pub const MESSAGE_TYPE_DECLARE_TXS_OK: u8 = 0x78;
+pub const MESSAGE_TYPE_DECLARE_TXS_MISSING: u8 = 0x79;
+pub const MESSAGE_TYPE_DECLARE_TXS_ERROR: u8 = 0x7a;
+pub const MESSAGE_TYPE_SEND_MISSING_TRANSACTIONS: u8 = 0x7b;
+
 // The `channel bits` indicate whether a message is associated with a specific
 // channel. If the most significant bit of the `extension_type` (referred to as
 // `channel_msg`) is set, the message is related to a channel and includes a
@@ -209,6 +216,12 @@ pub const CHANNEL_BIT_REQUEST_TRANSACTION_DATA: bool = false;
 pub const CHANNEL_BIT_REQUEST_TRANSACTION_DATA_SUCCESS: bool = false;
 pub const CHANNEL_BIT_REQUEST_TRANSACTION_DATA_ERROR: bool = false;
 pub const CHANNEL_BIT_SUBMIT_SOLUTION: bool = false;
+
+pub const CHANNEL_BIT_DECLARE_TXS: bool = false;
+pub const CHANNEL_BIT_DECLARE_TXS_OK: bool = false;
+pub const CHANNEL_BIT_DECLARE_TXS_MISSING: bool = false;
+pub const CHANNEL_BIT_DECLARE_TXS_ERROR: bool = false;
+pub const CHANNEL_BIT_SEND_MISSING_TRANSACTIONS: bool = false;
 
 // In the Job Declaration protocol, the `channel_msg` bit is always unset,
 // except for `SUBMIT_SOLUTION_JD`, which requires a specific channel reference.

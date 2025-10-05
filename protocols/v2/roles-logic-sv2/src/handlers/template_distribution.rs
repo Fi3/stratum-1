@@ -28,8 +28,7 @@
 use super::SendTo_;
 use crate::{errors::Error, parsers::TemplateDistribution, utils::Mutex};
 use template_distribution_sv2::{
-    CoinbaseOutputDataSize, NewTemplate, RequestTransactionData, RequestTransactionDataError,
-    RequestTransactionDataSuccess, SetNewPrevHash, SubmitSolution,
+    CoinbaseOutputDataSize, DeclareTxs, DeclareTxsError, DeclareTxsMissing, DeclareTxsOk, NewTemplate, RequestTransactionData, RequestTransactionDataError, RequestTransactionDataSuccess, SendMissinTransactions, SetNewPrevHash, SubmitSolution
 };
 
 /// see [`SendTo_`]
@@ -109,6 +108,30 @@ where
                     .safe_lock(|x| x.handle_request_tx_data_error(m))
                     .map_err(|e| crate::Error::PoisonLock(e.to_string()))?
             }
+            Ok(TemplateDistribution::DeclareTxsOk(m)) => {
+                info!(
+                    "Received DeclareTxsOk",
+                );
+                self_
+                    .safe_lock(|x| x.handle_declare_txs_ok(m))
+                    .map_err(|e| crate::Error::PoisonLock(e.to_string()))?
+            }
+            Ok(TemplateDistribution::DeclareTxsMissing(m)) => {
+                info!(
+                    "Received DeclareTxsMissing",
+                );
+                self_
+                    .safe_lock(|x| x.handle_declare_txs_missing(m))
+                    .map_err(|e| crate::Error::PoisonLock(e.to_string()))?
+            }
+            Ok(TemplateDistribution::DeclareTxsError(m)) => {
+                error!(
+                    "Received DeclareTxsError, error: {}",std::str::from_utf8(m.error_code.as_ref()).unwrap_or("unknown error code")
+                );
+                self_
+                    .safe_lock(|x| x.handle_declare_txs_error(m))
+                    .map_err(|e| crate::Error::PoisonLock(e.to_string()))?
+            }
             Ok(TemplateDistribution::CoinbaseOutputDataSize(_)) => Err(Error::UnexpectedMessage(
                 MESSAGE_TYPE_COINBASE_OUTPUT_DATA_SIZE,
             )),
@@ -117,6 +140,12 @@ where
             )),
             Ok(TemplateDistribution::SubmitSolution(_)) => {
                 Err(Error::UnexpectedMessage(MESSAGE_TYPE_SUBMIT_SOLUTION))
+            }
+            Ok(TemplateDistribution::DeclareTxs(_)) => {
+                Err(Error::UnexpectedMessage(MESSAGE_TYPE_DECLARE_TXS))
+            }
+            Ok(TemplateDistribution::SendMissinTransactions(_)) => {
+                Err(Error::UnexpectedMessage(MESSAGE_TYPE_SEND_MISSING_TRANSACTIONS))
             }
             Err(e) => Err(e),
         }
@@ -148,6 +177,21 @@ where
     fn handle_request_tx_data_error(
         &mut self,
         m: RequestTransactionDataError,
+    ) -> Result<SendTo, Error>;
+
+    fn handle_declare_txs_ok(
+        &mut self,
+        m: DeclareTxsOk,
+    ) -> Result<SendTo, Error>;
+
+    fn handle_declare_txs_missing(
+        &mut self,
+        m: DeclareTxsMissing,
+    ) -> Result<SendTo, Error>;
+
+    fn handle_declare_txs_error(
+        &mut self,
+        m: DeclareTxsError,
     ) -> Result<SendTo, Error>;
 }
 
@@ -193,6 +237,12 @@ where
             Ok(TemplateDistribution::SubmitSolution(m)) => self_
                 .safe_lock(|x| x.handle_request_submit_solution(m))
                 .map_err(|e| crate::Error::PoisonLock(e.to_string()))?,
+            Ok(TemplateDistribution::DeclareTxs(m)) => self_
+                .safe_lock(|x| x.handle_declare_txs(m))
+                .map_err(|e| crate::Error::PoisonLock(e.to_string()))?,
+            Ok(TemplateDistribution::SendMissinTransactions(m)) => self_
+                .safe_lock(|x| x.handle_send_missing_txs(m))
+                .map_err(|e| crate::Error::PoisonLock(e.to_string()))?,
             Ok(TemplateDistribution::NewTemplate(_)) => {
                 Err(Error::UnexpectedMessage(MESSAGE_TYPE_NEW_TEMPLATE))
             }
@@ -204,6 +254,15 @@ where
             ),
             Ok(TemplateDistribution::RequestTransactionDataError(_)) => Err(
                 Error::UnexpectedMessage(MESSAGE_TYPE_REQUEST_TRANSACTION_DATA_ERROR),
+            ),
+            Ok(TemplateDistribution::DeclareTxsOk(_)) => Err(
+                Error::UnexpectedMessage(MESSAGE_TYPE_DECLARE_TXS_OK),
+            ),
+            Ok(TemplateDistribution::DeclareTxsError(_)) => Err(
+                Error::UnexpectedMessage(MESSAGE_TYPE_DECLARE_TXS_ERROR),
+            ),
+            Ok(TemplateDistribution::DeclareTxsMissing(_)) => Err(
+                Error::UnexpectedMessage(MESSAGE_TYPE_DECLARE_TXS_MISSING),
             ),
             Err(e) => Err(e),
         }
@@ -224,4 +283,9 @@ where
     ///
     /// This method processes a solution submission message.
     fn handle_request_submit_solution(&mut self, m: SubmitSolution) -> Result<SendTo, Error>;
+
+    fn handle_declare_txs(&mut self, m: DeclareTxs)
+        -> Result<SendTo, Error>;
+    fn handle_send_missing_txs(&mut self, m: SendMissinTransactions)
+        -> Result<SendTo, Error>;
 }

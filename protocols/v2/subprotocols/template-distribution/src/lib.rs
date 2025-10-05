@@ -29,6 +29,7 @@ mod new_template;
 mod request_transaction_data;
 mod set_new_prev_hash;
 mod submit_solution;
+mod experiment;
 
 pub use coinbase_output_data_size::CoinbaseOutputDataSize;
 pub use new_template::{CNewTemplate, NewTemplate};
@@ -38,6 +39,7 @@ pub use request_transaction_data::{
 };
 pub use set_new_prev_hash::{CSetNewPrevHash, SetNewPrevHash};
 pub use submit_solution::{CSubmitSolution, SubmitSolution};
+pub use experiment::{DeclareTxs, DeclareTxsOk, DeclareTxsMissing, DeclareTxsError,SendMissinTransactions};
 
 /// Exports the [`CoinbaseOutputDataSize`] struct to C.
 #[no_mangle]

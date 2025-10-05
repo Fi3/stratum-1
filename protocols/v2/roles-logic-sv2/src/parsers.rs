@@ -72,7 +72,10 @@ use const_sv2::{
     MESSAGE_TYPE_SUBMIT_SHARES_ERROR, MESSAGE_TYPE_SUBMIT_SHARES_EXTENDED,
     MESSAGE_TYPE_SUBMIT_SHARES_STANDARD, MESSAGE_TYPE_SUBMIT_SHARES_SUCCESS,
     MESSAGE_TYPE_SUBMIT_SOLUTION, MESSAGE_TYPE_SUBMIT_SOLUTION_JD, MESSAGE_TYPE_UPDATE_CHANNEL,
-    MESSAGE_TYPE_UPDATE_CHANNEL_ERROR,
+    MESSAGE_TYPE_UPDATE_CHANNEL_ERROR,MESSAGE_TYPE_DECLARE_TXS,MESSAGE_TYPE_DECLARE_TXS_OK,
+    MESSAGE_TYPE_DECLARE_TXS_MISSING,MESSAGE_TYPE_DECLARE_TXS_ERROR,CHANNEL_BIT_DECLARE_TXS,
+    CHANNEL_BIT_DECLARE_TXS_OK,CHANNEL_BIT_DECLARE_TXS_MISSING,CHANNEL_BIT_DECLARE_TXS_ERROR,
+    MESSAGE_TYPE_SEND_MISSING_TRANSACTIONS,CHANNEL_BIT_SEND_MISSING_TRANSACTIONS,
 };
 
 use common_messages_sv2::{
@@ -81,7 +84,8 @@ use common_messages_sv2::{
 
 use template_distribution_sv2::{
     CoinbaseOutputDataSize, NewTemplate, RequestTransactionData, RequestTransactionDataError,
-    RequestTransactionDataSuccess, SetNewPrevHash, SubmitSolution,
+    RequestTransactionDataSuccess, SetNewPrevHash, SubmitSolution,DeclareTxs,DeclareTxsError,
+    DeclareTxsMissing,DeclareTxsOk,SendMissinTransactions
 };
 
 use job_declaration_sv2::{
@@ -137,6 +141,11 @@ pub enum TemplateDistribution<'a> {
     RequestTransactionDataSuccess(RequestTransactionDataSuccess<'a>),
     SetNewPrevHash(SetNewPrevHash<'a>),
     SubmitSolution(SubmitSolution<'a>),
+    DeclareTxs(DeclareTxs<'a>),
+    DeclareTxsError(DeclareTxsError<'a>),
+    DeclareTxsMissing(DeclareTxsMissing<'a>),
+    DeclareTxsOk(DeclareTxsOk<'a>),
+    SendMissinTransactions(SendMissinTransactions<'a>),
 }
 
 /// A parser of messages of Job Declaration subprotocol, to be used for parsing raw messages
@@ -280,6 +289,11 @@ impl<'a> IsSv2Message for TemplateDistribution<'a> {
             Self::RequestTransactionDataSuccess(_) => MESSAGE_TYPE_REQUEST_TRANSACTION_DATA_SUCCESS,
             Self::SetNewPrevHash(_) => MESSAGE_TYPE_SET_NEW_PREV_HASH,
             Self::SubmitSolution(_) => MESSAGE_TYPE_SUBMIT_SOLUTION,
+            Self::DeclareTxs(_) => MESSAGE_TYPE_DECLARE_TXS,
+            Self::DeclareTxsError(_) => MESSAGE_TYPE_DECLARE_TXS_ERROR,
+            Self::DeclareTxsOk(_) => MESSAGE_TYPE_DECLARE_TXS_OK,
+            Self::DeclareTxsMissing(_) => MESSAGE_TYPE_DECLARE_TXS_MISSING,
+            Self::SendMissinTransactions(_) => MESSAGE_TYPE_SEND_MISSING_TRANSACTIONS,
         }
     }
     fn channel_bit(&self) -> bool {
@@ -291,6 +305,11 @@ impl<'a> IsSv2Message for TemplateDistribution<'a> {
             Self::RequestTransactionDataSuccess(_) => CHANNEL_BIT_REQUEST_TRANSACTION_DATA_SUCCESS,
             Self::SetNewPrevHash(_) => CHANNEL_BIT_SET_NEW_PREV_HASH,
             Self::SubmitSolution(_) => CHANNEL_BIT_SUBMIT_SOLUTION,
+            Self::DeclareTxs(_) => CHANNEL_BIT_DECLARE_TXS,
+            Self::DeclareTxsError(_) => CHANNEL_BIT_DECLARE_TXS_ERROR,
+            Self::DeclareTxsOk(_) => CHANNEL_BIT_DECLARE_TXS_OK,
+            Self::DeclareTxsMissing(_) => CHANNEL_BIT_DECLARE_TXS_MISSING,
+            Self::SendMissinTransactions(_) => CHANNEL_BIT_SEND_MISSING_TRANSACTIONS,
         }
     }
 }
@@ -410,6 +429,11 @@ impl<'decoder> From<TemplateDistribution<'decoder>> for EncodableField<'decoder>
             TemplateDistribution::RequestTransactionDataSuccess(a) => a.into(),
             TemplateDistribution::SetNewPrevHash(a) => a.into(),
             TemplateDistribution::SubmitSolution(a) => a.into(),
+            TemplateDistribution::DeclareTxs(a) => a.into(),
+            TemplateDistribution::DeclareTxsError(a) => a.into(),
+            TemplateDistribution::DeclareTxsOk(a) => a.into(),
+            TemplateDistribution::DeclareTxsMissing(a) => a.into(),
+            TemplateDistribution::SendMissinTransactions(a) => a.into(),
         }
     }
 }
@@ -477,6 +501,11 @@ impl GetSize for TemplateDistribution<'_> {
             TemplateDistribution::RequestTransactionDataSuccess(a) => a.get_size(),
             TemplateDistribution::SetNewPrevHash(a) => a.get_size(),
             TemplateDistribution::SubmitSolution(a) => a.get_size(),
+            TemplateDistribution::DeclareTxs(a) => a.get_size(),
+            TemplateDistribution::DeclareTxsError(a) => a.get_size(),
+            TemplateDistribution::DeclareTxsOk(a) => a.get_size(),
+            TemplateDistribution::DeclareTxsMissing(a) => a.get_size(),
+            TemplateDistribution::SendMissinTransactions(a) => a.get_size(),
         }
     }
 }
@@ -649,6 +678,11 @@ pub enum TemplateDistributionTypes {
     RequestTransactionDataSuccess = MESSAGE_TYPE_REQUEST_TRANSACTION_DATA_SUCCESS,
     RequestTransactionDataError = MESSAGE_TYPE_REQUEST_TRANSACTION_DATA_ERROR,
     SubmitSolution = MESSAGE_TYPE_SUBMIT_SOLUTION,
+    DeclareTxs = MESSAGE_TYPE_DECLARE_TXS,
+    DeclareTxsOk = MESSAGE_TYPE_DECLARE_TXS_OK,
+    DeclareTxsMissing = MESSAGE_TYPE_DECLARE_TXS_MISSING,
+    DeclareTxsError = MESSAGE_TYPE_DECLARE_TXS_ERROR,
+    SendMissinTransactions = MESSAGE_TYPE_SEND_MISSING_TRANSACTIONS,
 }
 
 impl TryFrom<u8> for TemplateDistributionTypes {
@@ -669,6 +703,13 @@ impl TryFrom<u8> for TemplateDistributionTypes {
             }
             MESSAGE_TYPE_REQUEST_TRANSACTION_DATA_ERROR => {
                 Ok(TemplateDistributionTypes::RequestTransactionDataError)
+            }
+            MESSAGE_TYPE_DECLARE_TXS => Ok(TemplateDistributionTypes::DeclareTxs),
+            MESSAGE_TYPE_DECLARE_TXS_OK => Ok(TemplateDistributionTypes::DeclareTxsOk),
+            MESSAGE_TYPE_DECLARE_TXS_MISSING => Ok(TemplateDistributionTypes::DeclareTxsMissing),
+            MESSAGE_TYPE_DECLARE_TXS_ERROR => Ok(TemplateDistributionTypes::DeclareTxsError),
+            MESSAGE_TYPE_SEND_MISSING_TRANSACTIONS => {
+                Ok(TemplateDistributionTypes::SendMissinTransactions)
             }
             MESSAGE_TYPE_SUBMIT_SOLUTION => Ok(TemplateDistributionTypes::SubmitSolution),
             _ => Err(Error::UnexpectedMessage(v)),
@@ -709,6 +750,26 @@ impl<'a> TryFrom<(u8, &'a mut [u8])> for TemplateDistribution<'a> {
             TemplateDistributionTypes::SubmitSolution => {
                 let message: SubmitSolution = from_bytes(v.1)?;
                 Ok(TemplateDistribution::SubmitSolution(message))
+            }
+            TemplateDistributionTypes::DeclareTxs => {
+                let message: DeclareTxs = from_bytes(v.1)?;
+                Ok(TemplateDistribution::DeclareTxs(message))
+            }
+            TemplateDistributionTypes::DeclareTxsOk => {
+                let message: DeclareTxsOk = from_bytes(v.1)?;
+                Ok(TemplateDistribution::DeclareTxsOk(message))
+            }
+            TemplateDistributionTypes::DeclareTxsMissing => {
+                let message: DeclareTxsMissing = from_bytes(v.1)?;
+                Ok(TemplateDistribution::DeclareTxsMissing(message))
+            }
+            TemplateDistributionTypes::DeclareTxsError => {
+                let message: DeclareTxsError = from_bytes(v.1)?;
+                Ok(TemplateDistribution::DeclareTxsError(message))
+            }
+            TemplateDistributionTypes::SendMissinTransactions => {
+                let message: SendMissinTransactions = from_bytes(v.1)?;
+                Ok(TemplateDistribution::SendMissinTransactions(message))
             }
         }
     }
