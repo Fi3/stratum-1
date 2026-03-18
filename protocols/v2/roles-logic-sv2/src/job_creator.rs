@@ -326,8 +326,8 @@ fn get_bip_34_bytes(new_template: &NewTemplate, tx_version: i32) -> Result<Vec<u
     // add 1 cause 0 is push 1 2 is 1 is push 2 ecc ecc
     // add 1 cause in the len there is also the op code itself
     let bip34_len = script_prefix[0] as usize + 2;
-    if bip34_len == script_prefix.len() {
-        Ok(script_prefix[0..bip34_len].to_vec())
+    if bip34_len <= script_prefix.len() {
+        Ok(script_prefix.to_vec())
     } else {
         Err(Error::InvalidBip34Bytes(script_prefix.to_vec()))
     }
@@ -493,8 +493,28 @@ pub mod tests {
     use std::borrow::BorrowMut;
 
     use stratum_common::bitcoin::{
-        consensus::Encodable, secp256k1::Secp256k1, Network, PrivateKey, PublicKey,
+        consensus::Encodable, secp256k1::Secp256k1, Amount, Network, PrivateKey, PublicKey,
+        ScriptBuf, TxOut,
     };
+
+    fn new_template_with_coinbase_prefix(coinbase_prefix: Vec<u8>) -> NewTemplate<'static> {
+        let coinbase_tx_outputs: binary_sv2::B064K = Vec::<u8>::new().try_into().unwrap();
+        let merkle_path: binary_sv2::Seq0255<binary_sv2::U256> = vec![].into();
+
+        NewTemplate {
+            template_id: 1,
+            future_template: false,
+            version: 0,
+            coinbase_tx_version: 2,
+            coinbase_prefix: coinbase_prefix.try_into().unwrap(),
+            coinbase_tx_input_sequence: u32::MAX,
+            coinbase_tx_value_remaining: 50 * 100_000_000,
+            coinbase_tx_outputs_count: 0,
+            coinbase_tx_outputs,
+            coinbase_tx_locktime: 0,
+            merkle_path,
+        }
+    }
 
     pub fn template_from_gen(g: &mut Gen) -> NewTemplate<'static> {
         let mut coinbase_prefix_gen = Gen::new(255);
@@ -550,8 +570,57 @@ pub mod tests {
         pub_k
     }
 
-    #[cfg(feature = "prop_test")]
-    use stratum_common::bitcoin::ScriptBuf;
+    #[test]
+    fn get_bip_34_bytes_accepts_height_push_with_dmnd_suffix() {
+        let prefix = [vec![0x02, 0xe8, 0x03], b"/DMND/cane-pazzo/".to_vec()].concat();
+        let template = new_template_with_coinbase_prefix(prefix.clone());
+
+        let bip34 = get_bip_34_bytes(&template, 2).unwrap();
+        assert_eq!(bip34, prefix);
+
+        let outputs = [TxOut {
+            value: Amount::from_sat(50 * 100_000_000),
+            script_pubkey: ScriptBuf::new(),
+        }];
+        let coinbase = coinbase(bip34.clone(), 2, 0, u32::MAX, &outputs, 0, 8);
+        assert_eq!(
+            &coinbase.input[0].script_sig.as_bytes()[..bip34.len()],
+            &bip34
+        );
+    }
+
+    #[test]
+    fn get_bip_34_bytes_rejects_malformed_first_push() {
+        let prefix = vec![0x4c];
+        let template = new_template_with_coinbase_prefix(prefix.clone());
+
+        assert!(matches!(
+            get_bip_34_bytes(&template, 2),
+            Err(Error::InvalidBip34Bytes(bytes)) if bytes == prefix
+        ));
+    }
+
+    #[test]
+    fn get_bip_34_bytes_rejects_non_minimal_height_encoding() {
+        let prefix = vec![0x02, 0x01, 0x00];
+        let template = new_template_with_coinbase_prefix(prefix.clone());
+
+        assert!(matches!(
+            get_bip_34_bytes(&template, 2),
+            Err(Error::InvalidBip34Bytes(bytes)) if bytes == prefix
+        ));
+    }
+
+    #[test]
+    fn get_bip_34_bytes_rejects_negative_height() {
+        let prefix = vec![0x01, 0x81];
+        let template = new_template_with_coinbase_prefix(prefix.clone());
+
+        assert!(matches!(
+            get_bip_34_bytes(&template, 2),
+            Err(Error::InvalidBip34Bytes(bytes)) if bytes == prefix
+        ));
+    }
 
     // Test job_id_from_template
     #[cfg(feature = "prop_test")]

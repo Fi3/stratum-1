@@ -79,12 +79,12 @@ impl<'decoder> From<[u8; 32]> for U256<'decoder> {
         Inner::Owned(v.into())
     }
 }
-impl <'decoder> U256 <'decoder> {
-    pub fn to_hex(&self) -> String{
+impl<'decoder> U256<'decoder> {
+    pub fn to_hex(&self) -> String {
         hex::encode(&self)
     }
-    
-    /// To reverse in little endian 
+
+    /// To reverse in little endian
     pub fn to_hex_reversed(&self) -> String {
         let reversed: alloc::vec::Vec<u8> = self.inner_as_ref().iter().rev().cloned().collect();
         hex::encode(reversed)
@@ -92,13 +92,13 @@ impl <'decoder> U256 <'decoder> {
 }
 
 impl<'a> B032<'a> {
-    pub fn to_hex(&self) -> String{
+    pub fn to_hex(&self) -> String {
         hex::encode(&self)
     }
 }
 
 impl<'a> B064K<'a> {
-    pub fn to_hex(&self) -> String{
+    pub fn to_hex(&self) -> String {
         hex::encode(&self)
     }
 }

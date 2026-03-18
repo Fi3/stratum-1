@@ -1418,8 +1418,7 @@ impl PoolChannelFactory {
                 referenced_job,
                 additional_coinbase_script_data.len() as u8,
                 self.inner.extranonces.get_len() as u8,
-            )
-            .unwrap();
+            )?;
             let prev_blockhash = crate::utils::u256_to_block_hash(referenced_job.prev_hash.clone());
             let bits = referenced_job.nbits;
             match self.inner.check_target(
@@ -1448,8 +1447,7 @@ impl PoolChannelFactory {
                                 referenced_job,
                                 additional_coinbase_script_data.len() as u8,
                                 self.inner.extranonces.get_len() as u8,
-                            )
-                            .unwrap();
+                            )?;
                             self.inner.check_target(
                                 Share::Extended(m.into_static()),
                                 target,
@@ -2281,6 +2279,16 @@ mod test {
         decode_hex(COINBASE_OUTPUT).unwrap().try_into().unwrap()
     }
 
+    fn get_custom_job_outputs() -> B064K<'static> {
+        let out = TxOut {
+            value: Amount::from_sat(BLOCK_REWARD),
+            script_pubkey: decode_hex(COINBASE_OUTPUT).unwrap().into(),
+        };
+        stratum_common::bitcoin::consensus::serialize(&out)
+            .try_into()
+            .unwrap()
+    }
+
     fn get_merkle_path() -> Seq0255<'static, U256<'static>> {
         let mut m_path = decode_hex(MERKLE_PATH).unwrap();
         m_path.reverse();
@@ -2301,6 +2309,44 @@ mod test {
             .step_by(2)
             .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
             .collect()
+    }
+
+    fn custom_job_with_prefix(
+        channel_id: u32,
+        coinbase_prefix: Vec<u8>,
+    ) -> SetCustomMiningJob<'static> {
+        let mut prev_hash = decode_hex(PREV_HASH).unwrap();
+        prev_hash.reverse();
+
+        SetCustomMiningJob {
+            channel_id,
+            request_id: 1,
+            token: Vec::<u8>::new().try_into().unwrap(),
+            version: VERSION,
+            prev_hash: prev_hash.try_into().unwrap(),
+            min_ntime: PREV_HEADER_TIMESTAMP,
+            nbits: PREV_HEADER_NBITS,
+            coinbase_tx_version: 2,
+            coinbase_prefix: coinbase_prefix.try_into().unwrap(),
+            coinbase_tx_input_n_sequence: u32::MAX,
+            coinbase_tx_value_remaining: BLOCK_REWARD,
+            coinbase_tx_outputs: get_custom_job_outputs(),
+            coinbase_tx_locktime: 0,
+            merkle_path: get_merkle_path(),
+            extranonce_size: 8,
+        }
+    }
+
+    fn submit_extended_share(channel_id: u32) -> SubmitSharesExtended<'static> {
+        SubmitSharesExtended {
+            channel_id,
+            sequence_number: 1,
+            job_id: 1,
+            nonce: 0,
+            ntime: PREV_HEADER_TIMESTAMP,
+            version: VERSION,
+            extranonce: vec![0; 8].try_into().unwrap(),
+        }
     }
 
     #[test]
@@ -2578,5 +2624,52 @@ mod test {
             }
             _ => panic!(),
         }
+    }
+
+    #[test]
+    fn malformed_custom_job_coinbase_prefix_returns_error_instead_of_panicking() {
+        let out = TxOut {
+            value: Amount::from_sat(BLOCK_REWARD),
+            script_pubkey: decode_hex(
+                "4104c6d0969c2d98a5c19ba7c36c7937c5edbd60ff2a01397c4afe54f16cd641667ea0049ba6f9e1796ba3c8e49e1b504c532ebbaaa1010c3f7d9b83a8ea7fd800e2ac",
+            )
+            .unwrap()
+            .into(),
+        };
+        let creator = JobsCreators::new(16);
+        let share_per_min = 1.0;
+        let extranonces = ExtendedExtranonce::new(0..0, 0..8, 8..16);
+        let ids = Arc::new(Mutex::new(GroupId::new()));
+        let channel_kind = ExtendedChannelKind::Pool;
+        let mut channel = PoolChannelFactory::new(
+            ids,
+            extranonces,
+            creator,
+            share_per_min,
+            channel_kind,
+            vec![out],
+            Vec::new(),
+        )
+        .unwrap();
+
+        let result = channel
+            .new_extended_channel(100, 100_000_000_000_000.0, 2)
+            .unwrap();
+        let channel_id = match &result[0] {
+            Mining::OpenExtendedMiningChannelSuccess(msg) => msg.channel_id,
+            _ => panic!(),
+        };
+
+        let malformed_prefix = vec![0x4c];
+        channel.negotiated_jobs.insert(
+            channel_id,
+            custom_job_with_prefix(channel_id, malformed_prefix.clone()),
+        );
+
+        assert!(matches!(
+            channel.on_submit_shares_extended(submit_extended_share(channel_id)),
+            Err(Error::InvalidBip34Bytes(bytes)) if bytes == malformed_prefix
+        ));
+        //panic!();
     }
 }
