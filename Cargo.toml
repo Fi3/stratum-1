@@ -1,0 +1,41 @@
+[package]
+name = "roles_logic_sv2"
+version = "4.0.0"
+authors = ["The Stratum V2 Developers"]
+edition = "2021"
+description = "Standalone Stratum V2 role logic using native SRI protocol types"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/demand-open-source/stratum"
+
+[dependencies]
+bitcoin = "0.32.6"
+binary_sv2 = "=7.0.0"
+common_messages_sv2 = "=9.0.0"
+mining_sv2 = "=12.0.0"
+job_declaration_sv2 = "=10.0.0"
+template_distribution_sv2 = "=7.0.0"
+framing_sv2 = "=8.0.0"
+codec_sv2 = "=7.0.0"
+tracing = "0.1"
+nohash-hasher = "0.2.0"
+primitive-types = "0.13.1"
+hex = { package = "hex-conservative", version = "0.3.0" }
+quickcheck = { version = "1.0.3", optional = true }
+
+[dev-dependencies]
+quickcheck = "1.0.3"
+quickcheck_macros = "1"
+rand = "0.8.5"
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+serde = { version = "1", features = ["derive"] }
+
+[features]
+prop_test = ["dep:quickcheck"]
+disable_nopanic = []
+
+[[bench]]
+name = "migration"
+harness = false
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(demand_baseline)'] }
