@@ -100,6 +100,14 @@ pub enum Error {
     InvalidExtranonceSize(u16, u16),
     /// Extranonce prefix is already assigned to an active extended channel.
     ExtranoncePrefixAlreadyInUse,
+    /// Channel ID is reserved or already used by a channel or group.
+    ChannelIdAlreadyInUse(u32),
+    /// Stable channel marker counters must never wrap or be reused.
+    ChannelCoinbaseSequenceExhausted,
+    /// Custom job does not carry exactly one matching channel marker.
+    InvalidChannelCoinbaseOutput,
+    /// A broadcast group cannot mix CHSEQ-marked extended channels with standard channels.
+    IncompatibleChannelGroup(u32),
     /// Poison Lock
     PoisonLock(String),
     /// Invalid BIP34 bytes
@@ -186,6 +194,10 @@ impl Display for Error {
                 )
             },
             ExtranoncePrefixAlreadyInUse => write!(f, "Extranonce prefix already in use"),
+            ChannelIdAlreadyInUse(id) => write!(f, "Channel id {} is reserved or already in use", id),
+            ChannelCoinbaseSequenceExhausted => write!(f, "Channel coinbase sequence exhausted"),
+            InvalidChannelCoinbaseOutput => write!(f, "Custom job has an invalid channel coinbase output"),
+            IncompatibleChannelGroup(id) => write!(f, "Group {} cannot mix marked extended and standard channels", id),
             NoMoreExtranonces => write!(f, "No more extranonces"),
             JobIsNotFutureButPrevHashNotPresent => write!(f, "A non future job always expect a previous new prev hash"),
             ChannelIsNeitherExtendedNeitherInAPool => write!(f, "If a channel is neither extended neither is part of a pool the only thing to do when a OpenStandardChannel is received is to relay it upstream with and updated request id"),

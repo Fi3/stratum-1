@@ -79,8 +79,26 @@ impl JobsCreators {
         &mut self,
         template: &mut NewTemplateOwned,
         version_rolling_allowed: bool,
+        pool_coinbase_outputs: Vec<TxOut>,
+        additional_coinbase_script_data_len: u8,
+    ) -> Result<NewExtendedMiningJobOwned, Error> {
+        self.on_new_template_with_validation(
+            template,
+            version_rolling_allowed,
+            pool_coinbase_outputs,
+            additional_coinbase_script_data_len,
+            |_| Ok(()),
+        )
+    }
+
+    /// Allows a caller to validate channel-specific materialization before committing job state.
+    pub(crate) fn on_new_template_with_validation(
+        &mut self,
+        template: &mut NewTemplateOwned,
+        version_rolling_allowed: bool,
         mut pool_coinbase_outputs: Vec<TxOut>,
         additional_coinbase_script_data_len: u8,
+        validate: impl FnOnce(&NewExtendedMiningJobOwned) -> Result<(), Error>,
     ) -> Result<NewExtendedMiningJobOwned, Error> {
         let server_tx_outputs = template.coinbase_tx_outputs.as_bytes();
         let mut outputs =
@@ -91,7 +109,8 @@ impl JobsCreators {
         first.value = Amount::from_sat(template.coinbase_tx_value_remaining);
         pool_coinbase_outputs.append(&mut outputs);
 
-        let next_job_id = self.ids.next();
+        let mut next_ids = self.ids.clone();
+        let next_job_id = next_ids.next();
         let job = new_extended_job(
             template,
             &mut pool_coinbase_outputs,
@@ -101,6 +120,8 @@ impl JobsCreators {
             self.extranonce_len,
             self.last_ntime,
         )?;
+        validate(&job)?;
+        self.ids = next_ids;
         self.lasts_new_template.push(template.clone());
         self.job_to_template_id
             .insert(next_job_id, template.template_id);

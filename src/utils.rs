@@ -499,49 +499,51 @@ pub fn from_u128_to_u256(input: u128) -> U256Primitive {
 /// large mining farms.
 #[derive(Debug, Default)]
 pub struct GroupId {
-    group_ids: Id,
-    channel_ids: Id,
-    reserved_channel_ids: HashSet<u32, BuildNoHashHasher<u32>>,
+    ids: Id,
+    reserved_ids: HashSet<u32, BuildNoHashHasher<u32>>,
 }
 
 impl GroupId {
     /// Creates a new [`GroupId`] instance.
     ///
-    /// New GroupId it starts with groups 0, since 0 is reserved for hom downstream's.
+    /// Groups and channels share one counter; 0 is reserved for HOM groups.
     pub fn new() -> Self {
         Self {
-            group_ids: Id::new(),
-            channel_ids: Id::new(),
-            reserved_channel_ids: HashSet::default(),
+            ids: Id::new(),
+            reserved_ids: HashSet::default(),
         }
     }
 
     /// Generates a new unique group ID.
     ///
-    /// Increments the internal group ID counter and returns the next available group ID.
+    /// Returns the next available ID in the shared group and channel namespace.
     pub fn new_group_id(&mut self) -> u32 {
-        self.group_ids.next()
+        self.next_available_id()
     }
 
     /// Generates a new unique channel ID for a given group.
     ///
-    /// Increments the internal channel ID counter and returns the next available channel ID.
+    /// Returns the next available ID in the shared group and channel namespace.
     ///
     /// **Note**: The `_group_id` parameter is reserved for future use to create a hierarchical
     /// structure of IDs without breaking compatibility with older versions.
     pub fn new_channel_id(&mut self, _group_id: u32) -> u32 {
+        self.next_available_id()
+    }
+
+    fn next_available_id(&mut self) -> u32 {
         loop {
-            let channel_id = self.channel_ids.next();
-            if !self.reserved_channel_ids.remove(&channel_id) {
-                return channel_id;
+            let id = self.ids.next();
+            if !self.reserved_ids.remove(&id) {
+                return id;
             }
         }
     }
 
-    /// Prevents allocation of a restored channel ID without consuming lower available IDs.
+    /// Reserves an ID against both group and channel allocation without consuming lower IDs.
     pub fn reserve_channel_id(&mut self, channel_id: u32) {
-        if channel_id > self.channel_ids.state {
-            self.reserved_channel_ids.insert(channel_id);
+        if channel_id > self.ids.state {
+            self.reserved_ids.insert(channel_id);
         }
     }
 
@@ -588,7 +590,42 @@ fn test_group_id_new_channel_id() {
     let _ = group_ids.new_group_id();
     let id = group_ids.new_group_id();
     let channel_id = group_ids.new_channel_id(id);
-    assert!(channel_id == 1);
+    assert_eq!(channel_id, 3);
+    assert_eq!(group_ids.new_group_id(), 4);
+}
+
+#[test]
+fn test_group_id_reservations_apply_to_groups_and_channels() {
+    let mut ids = GroupId::new();
+    ids.reserve_channel_id(1);
+    assert_eq!(ids.new_group_id(), 2);
+    ids.reserve_channel_id(3);
+    assert_eq!(ids.new_channel_id(2), 4);
+    assert_eq!(ids.new_group_id(), 5);
+    assert_eq!(ids.new_channel_id(5), 6);
+}
+
+#[test]
+fn test_group_id_multiple_sparse_reservations_preserve_available_ids() {
+    let mut ids = GroupId::new();
+    for id in [7, 3, 4, 1, 3] {
+        ids.reserve_channel_id(id);
+    }
+    assert_eq!(ids.new_channel_id(0), 2);
+    assert_eq!(ids.new_group_id(), 5);
+    ids.reserve_channel_id(2);
+    assert_eq!(ids.new_channel_id(5), 6);
+    assert_eq!(ids.new_group_id(), 8);
+    assert_eq!(ids.new_channel_id(8), 9);
+}
+
+#[test]
+fn test_group_id_maximum_reservation_preserves_lower_ids() {
+    let mut ids = GroupId::default();
+    ids.reserve_channel_id(u32::MAX);
+    assert_eq!(ids.new_group_id(), 1);
+    assert_eq!(ids.new_channel_id(1), 2);
+    assert_eq!(ids.new_group_id(), 3);
 }
 #[test]
 fn test_group_id_new_into_complete_id() {

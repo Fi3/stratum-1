@@ -2,6 +2,8 @@
 
 Standalone Rust library for Stratum V2 pool, proxy, and miner role logic. Version 4 uses native SRI v1.12.0 protocol types. Target calculation, extranonce allocation, channel restoration, job variants, mining rounds, and fanout come from `demand/main` (`f037e6db3568454cdf7973aa6f457dd41d0856e1`).
 
+Optional CHSEQ channel outputs and the associated channel lifecycle APIs are ported from `bona/2026-09-21-extranonce-cb-output` (`d95c79a6`) using native owned SRI messages.
+
 This repository contains the library, tests, examples, and comparison fixtures. Applications, sockets, transaction caches, token authorization, and deployment belong to the consuming applications.
 
 ## Dependencies and imports
@@ -18,7 +20,7 @@ The published protocol dependencies are pinned to the [SRI v1.12.0 release](http
 | `framing_sv2` | 8.0.0 |
 | `codec_sv2` | 7.0.0 |
 
-`bitcoin` is a direct dependency. All eight crates are also reexported by `roles_logic_sv2`. Import wire messages from the protocol crates, and domain helpers from `roles_logic_sv2::mining::{Target, Extranonce, ExtendedExtranonce}`. There are no old-workspace path dependencies or compatibility message definitions.
+`bitcoin` is a direct dependency. All eight crates are also reexported by `roles_logic_sv2`. Import wire messages from the protocol crates, and domain helpers from `roles_logic_sv2::mining::{Target, Extranonce, ExtendedExtranonce}`. `rand` is a runtime dependency for `OsRng`, which generates the factory prefix when CHSEQ is enabled. There are no old-workspace path dependencies or compatibility message definitions.
 
 ```rust
 use mining_sv2::OpenStandardMiningChannelOwned;
@@ -97,7 +99,42 @@ TD templates differ: `NewTemplate::coinbase_tx_outputs_count` is separate from i
 
 `PoolChannelFactory::on_new_set_custom_mining_job` returns `Result<SetCustomMiningJobSuccess, Error>` after validating the outputs and coinbase prefix. Custom shares must reference an acknowledged `(channel_id, job_id)` pair. Each channel retains at most 32 custom jobs (`MAX_CUSTOM_JOBS_PER_CHANNEL`), evicting the oldest on registration. TP tip updates discard jobs whose `prev_hash` differs from the incoming tip, preserving matching jobs registered ahead of that notification. Evicted job IDs return `ShareDoNotMatchAnyJob`; the channel remains in custom-job mode until close, which discards its cache. The full extranonce length comes from the registered native channel's prefix and `extranonce_size`, accessible through `full_extranonce_len(channel_id)`. Pool additional script data is stored separately from its allocator-managed nonce prefix and is inserted separately during coinbase reconstruction. Native restoration accepts the advertised prefix, including that data, and reserves the restored ID in the shared allocator without consuming lower available IDs. The caller authorizes tokens before accepting custom jobs. `PartialSetCustomMiningJob` is local job-building state; its `future_job` field is scheduling information, not a native custom-job wire field.
 
-Malformed BIP34 height pushes and out-of-bounds coinbase scripts return errors. Template IDs, including `u64::MAX`, are retained without sentinel arithmetic. `replicate_upstream_extended_channel_only_jd` now accepts a native owned channel assignment and returns `Result<(), Error>`. This mock-only path retains its group and assigned nonce size without registering allocator space; its documented mock-pool restrictions still apply. Prefer `restore_extended_channel` for normal restoration.
+Malformed BIP34 height pushes and out-of-bounds coinbase scripts return errors. Template IDs, including `u64::MAX`, are retained without sentinel arithmetic. `replicate_upstream_extended_channel_only_jd` now accepts a native owned channel assignment and returns `Result<(), Error>`. This mock-only path retains its group and assigned nonce size and reserves its channel/group IDs, but does not reserve its extranonce space; its documented mock-pool restrictions still apply. Prefer `restore_extended_channel` for normal restoration.
+
+## Optional channel coinbase outputs
+
+Call `PoolChannelFactory::with_channel_coinbase_outputs()` before opening or restoring extended channels. The feature is disabled by default. Each successful open or restoration gets a stable, zero-valued `OP_RETURN` output containing `CHSEQ`, a random 16-byte factory prefix, and an 8-byte big-endian counter starting at 1. Repeated opt-in preserves that prefix and counter; a new factory gets a new prefix. `channel_coinbase_output(channel_id)` returns a copy of the assigned `ChannelCoinbaseOutput`.
+
+Jobs returned during open/restoration, ordinary template fanout, current-job replay, and share reconstruction include the assigned marker. The shared job returned by `on_new_template_for_extended_fanout` needs materialization for each channel before sending it. Apply the channel marker first, append any local `TxOut`, then register that local output for share validation:
+
+```rust
+let (shared_job, channel_ids, standard_messages) =
+    factory.on_new_template_for_extended_fanout(&mut template)?;
+for channel_id in channel_ids {
+    let mut job = shared_job.clone();
+    job.channel_id = channel_id;
+    if let Some(marker) = factory.channel_coinbase_output(channel_id) {
+        marker.apply(&mut job)?;
+    }
+    // Append local_output to the Bitcoin output vector, preserving witness and locktime.
+    // See examples/channel_coinbase_outputs.rs for the complete native transaction code.
+    append_local_output(&mut job, &full_extranonce, local_output.clone())?;
+    factory.register_extended_job_coinbase_output(channel_id, job.job_id, local_output);
+    // Send the materialized job and the appropriate SetNewPrevHash to this channel.
+}
+```
+
+Copy markers while holding the application's factory lock, then clone and materialize fanout jobs outside it. `ChannelCoinbaseOutput::apply` replaces the first reserved marker in place and removes duplicates; repeated application is idempotent. It preserves other outputs, the input sequence, the extranonce split, witness, and locktime, and returns errors for malformed or oversized suffixes without changing the job. Budget `ChannelCoinbaseOutput::additional_coinbase_weight()` for each marked coinbase: 168 weight units, including the possible two-byte CompactSize count growth. Budget local outputs separately and convert units as required by the consuming budget API.
+
+`register_extended_job_variant(channel_id, job_id, suffix)` retains the full suffix-variant API, including arbitrary valid output sets, input sequence, witness, and locktime. During share validation the factory installs that suffix, normalizes its CHSEQ marker, and then appends the optional output registered by `register_extended_job_coinbase_output`. The latter stores one explicit `TxOut` per channel/job pair. Send miners the same final transaction; if both APIs are used, omit that appended output from the registered base suffix so it appears once. Current-job replay returns the marked canonical job; callers must reapply their local variants and outputs when replaying those changes.
+
+Custom jobs for a marked channel must include exactly one matching CHSEQ output in their complete count-prefixed `coinbase_tx_outputs`. Use `marker.tx_out()` when assembling that vector. `try_on_new_set_custom_mining_job` returns either native `SetCustomMiningJobSuccess` or `SetCustomMiningJobErrorOwned`, preserving the channel and request IDs. `on_new_set_custom_mining_job` remains available for library errors. Token authorization belongs to the caller. The 32-job limit, eviction on tip changes, and validation by acknowledged `(channel_id, job_id)` remain in effect.
+
+Channel and group IDs share one allocator. Sparse restored IDs reserve their exact values while lower unused IDs remain available; restored native group assignments are retained. `register_channel_user` associates an identifier with an open extended channel, rejects conflicts, and `channel_id_for_user` finds it until close. Closing a channel clears its identity, marker, and retained work. `close_group` closes grouped standard channels and releases an empty nonzero group reservation; native extended members remain open and must be closed individually. Group zero and individual channel IDs are ignored by `close_group`.
+
+A group containing marked extended channels cannot also contain grouped standard channels, including group zero: their shared job would otherwise carry incompatible coinbase commitments. Opens or restorations that introduce this combination return `Error::IncompatibleChannelGroup`. Header-only standard channels are compatible because each receives its own standard job.
+
+Run `cargo run --example channel_coinbase_outputs` for native fanout with local outputs and a check that share validation reconstructs exactly the coinbase sent to each channel.
 
 ## Validation and comparison
 
@@ -110,6 +147,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 cargo test --all-features
 cargo run --example native_api
+cargo run --example channel_coinbase_outputs
 ```
 
 `prop_test` enables additional local template property tests. Local generators wrap native messages where orphan rules prevent upstream trait implementations. The retained suite covers mining rounds, restored prefixes, stale jobs, per-channel variants, extranonces, targets, and fanout. Integration tests add native consumer, wire, routing, group, budget, custom output, SegWit, and codec coverage.

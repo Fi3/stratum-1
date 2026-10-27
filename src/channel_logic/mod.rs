@@ -6,6 +6,7 @@
 //! - [`channel_factory`]
 //! - [`proxy_group_channel`]
 
+pub mod channel_coinbase_output;
 pub mod channel_factory;
 pub mod proxy_group_channel;
 
